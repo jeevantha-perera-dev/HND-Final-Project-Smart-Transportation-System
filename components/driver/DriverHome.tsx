@@ -10,6 +10,12 @@ type DriverTab = "dashboard" | "performance" | "settings";
 
 export default function DriverHome() {
   const [activeTab, setActiveTab] = useState<DriverTab>("dashboard");
+  const headerTitle =
+    activeTab === "performance"
+      ? "My Performance"
+      : activeTab === "settings"
+        ? "Settings"
+        : "Driver Dashboard";
 
   const activeScreen = useMemo(() => {
     if (activeTab === "performance") {
@@ -30,7 +36,7 @@ export default function DriverHome() {
           <View style={styles.brandIcon}>
             <Ionicons name="bus-outline" size={16} color="#E5F0FB" />
           </View>
-          <Text style={styles.brandTitle}>Driver Dashboard</Text>
+          <Text style={styles.brandTitle}>{headerTitle}</Text>
         </View>
         <View style={styles.profileWrap}>
           <View style={styles.profileImagePlaceholder}>
