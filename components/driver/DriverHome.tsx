@@ -5,6 +5,8 @@ import { Ionicons } from "@expo/vector-icons";
 import DriverDashboardScreen from "./DriverDashboardScreen";
 import DriverPerformanceScreen from "./DriverPerformanceScreen";
 import ProfileAndSettingsScreen from "../shared/SettingsScreen";
+import DriverLiveTripScreen from "./DriverLiveTripScreen";
+import DriverTripScannerScreen from "./DriverTripScannerScreen";
 
 type DriverTab = "dashboard" | "performance" | "settings";
 
@@ -14,6 +16,8 @@ type DriverHomeProps = {
 
 export default function DriverHome({ onLogout }: DriverHomeProps) {
   const [activeTab, setActiveTab] = useState<DriverTab>("dashboard");
+  const [isLiveTripOpen, setIsLiveTripOpen] = useState(false);
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
   const headerTitle =
     activeTab === "performance"
       ? "My Performance"
@@ -22,6 +26,22 @@ export default function DriverHome({ onLogout }: DriverHomeProps) {
         : "Driver Dashboard";
 
   const activeScreen = useMemo(() => {
+    if (isScannerOpen) {
+      return <DriverTripScannerScreen onBack={() => setIsScannerOpen(false)} />;
+    }
+
+    if (isLiveTripOpen) {
+      return (
+        <DriverLiveTripScreen
+          onOpenScanner={() => setIsScannerOpen(true)}
+          onEndTrip={() => {
+            setIsScannerOpen(false);
+            setIsLiveTripOpen(false);
+          }}
+        />
+      );
+    }
+
     if (activeTab === "performance") {
       return <DriverPerformanceScreen />;
     }
@@ -32,50 +52,54 @@ export default function DriverHome({ onLogout }: DriverHomeProps) {
       );
     }
 
-    return <DriverDashboardScreen />;
-  }, [activeTab, onLogout]);
+    return <DriverDashboardScreen onStartTrip={() => setIsLiveTripOpen(true)} />;
+  }, [activeTab, isLiveTripOpen, isScannerOpen, onLogout]);
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.topBar}>
-        <View style={styles.brandRow}>
-          <View style={styles.brandIcon}>
-            <Ionicons name="bus-outline" size={16} color="#E5F0FB" />
+      {!isLiveTripOpen && !isScannerOpen && (
+        <View style={styles.topBar}>
+          <View style={styles.brandRow}>
+            <View style={styles.brandIcon}>
+              <Ionicons name="bus-outline" size={16} color="#E5F0FB" />
+            </View>
+            <Text style={styles.brandTitle}>{headerTitle}</Text>
           </View>
-          <Text style={styles.brandTitle}>{headerTitle}</Text>
-        </View>
-        <View style={styles.profileWrap}>
-          <View style={styles.profileImagePlaceholder}>
-            <Ionicons name="person" size={18} color="#FFFFFF" />
+          <View style={styles.profileWrap}>
+            <View style={styles.profileImagePlaceholder}>
+              <Ionicons name="person" size={18} color="#FFFFFF" />
+            </View>
+            <View style={styles.onlineDot} />
           </View>
-          <View style={styles.onlineDot} />
         </View>
-      </View>
+      )}
 
-      <View style={styles.divider} />
+      {!isLiveTripOpen && !isScannerOpen && <View style={styles.divider} />}
 
       <View style={styles.body}>{activeScreen}</View>
 
-      <View style={styles.tabBar}>
-        <TabButton
-          label="Dashboard"
-          icon="grid-outline"
-          active={activeTab === "dashboard"}
-          onPress={() => setActiveTab("dashboard")}
-        />
-        <TabButton
-          label="Performance"
-          icon="trending-up-outline"
-          active={activeTab === "performance"}
-          onPress={() => setActiveTab("performance")}
-        />
-        <TabButton
-          label="Settings"
-          icon="settings-outline"
-          active={activeTab === "settings"}
-          onPress={() => setActiveTab("settings")}
-        />
-      </View>
+      {!isLiveTripOpen && !isScannerOpen && (
+        <View style={styles.tabBar}>
+          <TabButton
+            label="Dashboard"
+            icon="grid-outline"
+            active={activeTab === "dashboard"}
+            onPress={() => setActiveTab("dashboard")}
+          />
+          <TabButton
+            label="Performance"
+            icon="trending-up-outline"
+            active={activeTab === "performance"}
+            onPress={() => setActiveTab("performance")}
+          />
+          <TabButton
+            label="Settings"
+            icon="settings-outline"
+            active={activeTab === "settings"}
+            onPress={() => setActiveTab("settings")}
+          />
+        </View>
+      )}
     </SafeAreaView>
   );
 }
