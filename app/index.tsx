@@ -1,19 +1,30 @@
 import React, { useEffect, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
 import LoginScreen, { UserRole } from "../components/auth/LoginScreen";
-import DriverHome from "../components/driver/DriverHome";
 import Onboarding from "../components/Onboarding";
+import DriverHome from "../components/driver/DriverHome";
+import PassengerModule from "../components/passenger/PassengerModule";
 import SplashScreen from "../components/SplashScreen";
 
 export default function AppEntryPoint() {
   const [currentView, setCurrentView] = useState<
     "splash" | "onboarding" | "login" | "driver-main" | "passenger-main"
   >("splash");
+  const [splashTarget, setSplashTarget] = useState<"onboarding" | "login">(
+    "onboarding",
+  );
 
   useEffect(() => {
-    const timer = setTimeout(() => setCurrentView("onboarding"), 3000);
+    if (currentView !== "splash") return;
+
+    const timer = setTimeout(() => setCurrentView(splashTarget), 3000);
     return () => clearTimeout(timer);
-  }, []);
+  }, [currentView, splashTarget]);
+
+  const handleLogout = () => {
+    // On logout: always restart from splash, then go directly to login.
+    setSplashTarget("login");
+    setCurrentView("splash");
+  };
 
   if (currentView === "splash") return <SplashScreen />;
 
@@ -32,22 +43,8 @@ export default function AppEntryPoint() {
   }
 
   if (currentView === "driver-main") {
-    return <DriverHome />;
+    return <DriverHome onLogout={handleLogout} />;
   }
 
-  return (
-    <View style={styles.main}>
-      <Text style={styles.text}>Passenger home screen coming next.</Text>
-    </View>
-  );
+  return <PassengerModule onLogout={handleLogout} />;
 }
-
-const styles = StyleSheet.create({
-  main: {
-    flex: 1,
-    backgroundColor: "#0B1223",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  text: { color: "#FFF", fontSize: 20, fontWeight: "bold" },
-});

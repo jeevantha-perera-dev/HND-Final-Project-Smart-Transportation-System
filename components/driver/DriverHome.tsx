@@ -4,11 +4,15 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import DriverDashboardScreen from "./DriverDashboardScreen";
 import DriverPerformanceScreen from "./DriverPerformanceScreen";
-import DriverSettingsScreen from "./DriverSettingsScreen";
+import ProfileAndSettingsScreen from "../shared/SettingsScreen";
 
 type DriverTab = "dashboard" | "performance" | "settings";
 
-export default function DriverHome() {
+type DriverHomeProps = {
+  onLogout?: () => void;
+};
+
+export default function DriverHome({ onLogout }: DriverHomeProps) {
   const [activeTab, setActiveTab] = useState<DriverTab>("dashboard");
   const headerTitle =
     activeTab === "performance"
@@ -23,11 +27,13 @@ export default function DriverHome() {
     }
 
     if (activeTab === "settings") {
-      return <DriverSettingsScreen />;
+      return (
+        <ProfileAndSettingsScreen showBottomTabs={false} onLogout={onLogout} />
+      );
     }
 
     return <DriverDashboardScreen />;
-  }, [activeTab]);
+  }, [activeTab, onLogout]);
 
   return (
     <SafeAreaView style={styles.container}>
