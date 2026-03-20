@@ -2,7 +2,11 @@ import React from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
-export default function DriverDashboardScreen() {
+type DriverDashboardScreenProps = {
+  onStartTrip?: () => void;
+};
+
+export default function DriverDashboardScreen({ onStartTrip }: DriverDashboardScreenProps) {
   return (
     <ScrollView
       style={styles.container}
@@ -19,7 +23,7 @@ export default function DriverDashboardScreen() {
         </View>
       </View>
 
-      <Pressable style={styles.primaryButton}>
+      <Pressable style={styles.primaryButton} onPress={onStartTrip}>
         <Ionicons name="play-outline" size={18} color="#0D2135" />
         <Text style={styles.primaryButtonText}>START SCHEDULED TRIP</Text>
       </Pressable>
