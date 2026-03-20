@@ -4,9 +4,13 @@ import { Ionicons } from "@expo/vector-icons";
 
 type DriverTripScannerScreenProps = {
   onBack?: () => void;
+  onManualEntry?: () => void;
 };
 
-export default function DriverTripScannerScreen({ onBack }: DriverTripScannerScreenProps) {
+export default function DriverTripScannerScreen({
+  onBack,
+  onManualEntry,
+}: DriverTripScannerScreenProps) {
   return (
     <View style={styles.screen}>
       <ImageBackground
@@ -55,7 +59,7 @@ export default function DriverTripScannerScreen({ onBack }: DriverTripScannerScr
         </View>
 
         <View style={styles.actionsRow}>
-          <Pressable style={styles.manualButton}>
+          <Pressable style={styles.manualButton} onPress={onManualEntry}>
             <Ionicons name="calendar-outline" size={18} color="#E8F1FB" />
             <Text style={styles.manualText}>Manual Entry</Text>
           </Pressable>

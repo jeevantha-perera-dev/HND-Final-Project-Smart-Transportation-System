@@ -7,6 +7,7 @@ import DriverPerformanceScreen from "./DriverPerformanceScreen";
 import ProfileAndSettingsScreen from "../shared/SettingsScreen";
 import DriverLiveTripScreen from "./DriverLiveTripScreen";
 import DriverTripScannerScreen from "./DriverTripScannerScreen";
+import DriverManualEntryScreen from "./DriverManualEntryScreen";
 
 type DriverTab = "dashboard" | "performance" | "settings";
 
@@ -18,6 +19,7 @@ export default function DriverHome({ onLogout }: DriverHomeProps) {
   const [activeTab, setActiveTab] = useState<DriverTab>("dashboard");
   const [isLiveTripOpen, setIsLiveTripOpen] = useState(false);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [isManualEntryOpen, setIsManualEntryOpen] = useState(false);
   const headerTitle =
     activeTab === "performance"
       ? "My Performance"
@@ -26,8 +28,22 @@ export default function DriverHome({ onLogout }: DriverHomeProps) {
         : "Driver Dashboard";
 
   const activeScreen = useMemo(() => {
+    if (isManualEntryOpen) {
+      return (
+        <DriverManualEntryScreen
+          onBack={() => setIsManualEntryOpen(false)}
+          onFinishCheck={() => setIsManualEntryOpen(false)}
+        />
+      );
+    }
+
     if (isScannerOpen) {
-      return <DriverTripScannerScreen onBack={() => setIsScannerOpen(false)} />;
+      return (
+        <DriverTripScannerScreen
+          onBack={() => setIsScannerOpen(false)}
+          onManualEntry={() => setIsManualEntryOpen(true)}
+        />
+      );
     }
 
     if (isLiveTripOpen) {
@@ -35,6 +51,7 @@ export default function DriverHome({ onLogout }: DriverHomeProps) {
         <DriverLiveTripScreen
           onOpenScanner={() => setIsScannerOpen(true)}
           onEndTrip={() => {
+            setIsManualEntryOpen(false);
             setIsScannerOpen(false);
             setIsLiveTripOpen(false);
           }}
@@ -53,11 +70,11 @@ export default function DriverHome({ onLogout }: DriverHomeProps) {
     }
 
     return <DriverDashboardScreen onStartTrip={() => setIsLiveTripOpen(true)} />;
-  }, [activeTab, isLiveTripOpen, isScannerOpen, onLogout]);
+  }, [activeTab, isLiveTripOpen, isScannerOpen, isManualEntryOpen, onLogout]);
 
   return (
     <SafeAreaView style={styles.container}>
-      {!isLiveTripOpen && !isScannerOpen && (
+      {!isLiveTripOpen && !isScannerOpen && !isManualEntryOpen && (
         <View style={styles.topBar}>
           <View style={styles.brandRow}>
             <View style={styles.brandIcon}>
@@ -74,11 +91,11 @@ export default function DriverHome({ onLogout }: DriverHomeProps) {
         </View>
       )}
 
-      {!isLiveTripOpen && !isScannerOpen && <View style={styles.divider} />}
+      {!isLiveTripOpen && !isScannerOpen && !isManualEntryOpen && <View style={styles.divider} />}
 
       <View style={styles.body}>{activeScreen}</View>
 
-      {!isLiveTripOpen && !isScannerOpen && (
+      {!isLiveTripOpen && !isScannerOpen && !isManualEntryOpen && (
         <View style={styles.tabBar}>
           <TabButton
             label="Dashboard"
