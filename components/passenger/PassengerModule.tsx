@@ -11,6 +11,7 @@ import QRTicketScreen from "./screens/QRTicketScreen";
 import NotificationsScreen from "./screens/NotificationsScreen";
 import RateTripScreen from "./screens/RateTripScreen";
 import LiveTrackingScreen from "./screens/LiveTrackingScreen";
+import RouteSearchScreen from "./screens/RouteSearchScreen";
 import { PassengerRootStackParamList, PassengerTabsParamList } from "./types";
 import { colors } from "./theme";
 import ProfileAndSettingsScreen from "../shared/SettingsScreen";
@@ -89,6 +90,7 @@ export default function PassengerModule({ onLogout }: PassengerModuleProps) {
         <RootStack.Screen name="QRTicket" component={QRTicketScreen} />
         <RootStack.Screen name="RateTrip" component={RateTripScreen} />
         <RootStack.Screen name="LiveTracking" component={LiveTrackingScreen} />
+        <RootStack.Screen name="RouteSearch" component={RouteSearchScreen} />
       </RootStack.Navigator>
     </NavigationIndependentTree>
   );
