@@ -4,9 +4,15 @@ import { Ionicons } from "@expo/vector-icons";
 
 type DriverDashboardScreenProps = {
   onStartTrip?: () => void;
+  onViewRoutes?: () => void;
+  onViewTripHistory?: () => void;
 };
 
-export default function DriverDashboardScreen({ onStartTrip }: DriverDashboardScreenProps) {
+export default function DriverDashboardScreen({
+  onStartTrip,
+  onViewRoutes,
+  onViewTripHistory,
+}: DriverDashboardScreenProps) {
   return (
     <ScrollView
       style={styles.container}
@@ -30,7 +36,7 @@ export default function DriverDashboardScreen({ onStartTrip }: DriverDashboardSc
 
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>UP NEXT</Text>
-        <Pressable>
+        <Pressable onPress={onViewRoutes}>
           <Text style={styles.sectionLink}>View All Routes</Text>
         </Pressable>
       </View>
@@ -107,6 +113,12 @@ export default function DriverDashboardScreen({ onStartTrip }: DriverDashboardSc
           <Text style={styles.summaryDelta}>Today</Text>
         </View>
       </View>
+
+      <Pressable style={styles.historyBtn} onPress={onViewTripHistory}>
+        <Ionicons name="time-outline" size={16} color="#8BC0F2" />
+        <Text style={styles.historyBtnText}>View Trip History</Text>
+        <Ionicons name="chevron-forward-outline" size={16} color="#8BC0F2" />
+      </Pressable>
 
       <View style={styles.alertCard}>
         <View style={styles.alertIconWrap}>
@@ -321,6 +333,23 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 12,
     marginBottom: 14,
+  },
+  historyBtn: {
+    height: 46,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#2A3B4F",
+    backgroundColor: "#171F2A",
+    marginBottom: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  historyBtnText: {
+    color: "#CFE4F8",
+    fontSize: 14,
+    fontWeight: "700",
   },
   summaryCard: {
     flex: 1,

@@ -4,9 +4,13 @@ import { Ionicons } from "@expo/vector-icons";
 
 type DriverReportIncidentScreenProps = {
   onBack?: () => void;
+  onSubmit?: () => void;
 };
 
-export default function DriverReportIncidentScreen({ onBack }: DriverReportIncidentScreenProps) {
+export default function DriverReportIncidentScreen({
+  onBack,
+  onSubmit,
+}: DriverReportIncidentScreenProps) {
   const [confirmed, setConfirmed] = useState(false);
 
   return (
@@ -103,6 +107,7 @@ export default function DriverReportIncidentScreen({ onBack }: DriverReportIncid
         <Pressable
           style={[styles.submitBtn, !confirmed && styles.submitBtnDisabled]}
           disabled={!confirmed}
+          onPress={onSubmit}
         >
           <Text style={[styles.submitText, !confirmed && styles.submitTextDisabled]}>
             Submit Report

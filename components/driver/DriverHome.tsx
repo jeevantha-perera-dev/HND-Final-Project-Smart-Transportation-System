@@ -4,13 +4,29 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import DriverDashboardScreen from "./DriverDashboardScreen";
 import DriverPerformanceScreen from "./DriverPerformanceScreen";
-import ProfileAndSettingsScreen from "../shared/SettingsScreen";
 import DriverLiveTripScreen from "./DriverLiveTripScreen";
 import DriverTripScannerScreen from "./DriverTripScannerScreen";
 import DriverManualEntryScreen from "./DriverManualEntryScreen";
 import DriverReportIncidentScreen from "./DriverReportIncidentScreen";
+import DriverRoutesListScreen, { DriverRouteSummary } from "./DriverRoutesListScreen";
+import DriverRouteDetailsScreen from "./DriverRouteDetailsScreen";
+import DriverTripHistoryScreen from "./DriverTripHistoryScreen";
+import DriverQueueDetailsScreen, { DriverPassengerDetails } from "./DriverQueueDetailsScreen";
+import DriverIncidentHistoryScreen from "./DriverIncidentHistoryScreen";
+import DriverSettingsScreen from "./DriverSettingsScreen";
 
 type DriverTab = "dashboard" | "performance" | "settings";
+type DriverOverlay =
+  | null
+  | "liveTrip"
+  | "scanner"
+  | "manualEntry"
+  | "reportIncident"
+  | "routesList"
+  | "routeDetails"
+  | "tripHistory"
+  | "queueDetails"
+  | "incidentHistory";
 
 type DriverHomeProps = {
   onLogout?: () => void;
@@ -18,10 +34,12 @@ type DriverHomeProps = {
 
 export default function DriverHome({ onLogout }: DriverHomeProps) {
   const [activeTab, setActiveTab] = useState<DriverTab>("dashboard");
-  const [isLiveTripOpen, setIsLiveTripOpen] = useState(false);
-  const [isScannerOpen, setIsScannerOpen] = useState(false);
-  const [isManualEntryOpen, setIsManualEntryOpen] = useState(false);
-  const [isIncidentOpen, setIsIncidentOpen] = useState(false);
+  const [overlay, setOverlay] = useState<DriverOverlay>(null);
+  const [selectedRoute, setSelectedRoute] = useState<DriverRouteSummary | null>(null);
+  const [selectedPassenger, setSelectedPassenger] = useState<DriverPassengerDetails | null>(null);
+  const [queueBackTarget, setQueueBackTarget] = useState<"liveTrip" | "tripHistory">("liveTrip");
+
+  const isOverlayOpen = overlay !== null;
   const headerTitle =
     activeTab === "performance"
       ? "My Performance"
@@ -30,38 +48,98 @@ export default function DriverHome({ onLogout }: DriverHomeProps) {
         : "Driver Dashboard";
 
   const activeScreen = useMemo(() => {
-    if (isIncidentOpen) {
-      return <DriverReportIncidentScreen onBack={() => setIsIncidentOpen(false)} />;
+    if (overlay === "incidentHistory") {
+      return (
+        <DriverIncidentHistoryScreen
+          onBack={() => setOverlay("liveTrip")}
+        />
+      );
     }
 
-    if (isManualEntryOpen) {
+    if (overlay === "queueDetails") {
+      return (
+        <DriverQueueDetailsScreen
+          passenger={selectedPassenger}
+          onBack={() => setOverlay(queueBackTarget)}
+        />
+      );
+    }
+
+    if (overlay === "tripHistory") {
+      return (
+        <DriverTripHistoryScreen
+          onBack={() => setOverlay(null)}
+          onOpenQueueDetails={(passenger) => {
+            setSelectedPassenger(passenger);
+            setQueueBackTarget("tripHistory");
+            setOverlay("queueDetails");
+          }}
+        />
+      );
+    }
+
+    if (overlay === "routeDetails") {
+      return (
+        <DriverRouteDetailsScreen
+          routeData={selectedRoute}
+          onBack={() => setOverlay("routesList")}
+          onStartTrip={() => setOverlay("liveTrip")}
+        />
+      );
+    }
+
+    if (overlay === "routesList") {
+      return (
+        <DriverRoutesListScreen
+          onBack={() => setOverlay(null)}
+          onOpenTripHistory={() => setOverlay("tripHistory")}
+          onOpenRoute={(route) => {
+            setSelectedRoute(route);
+            setOverlay("routeDetails");
+          }}
+        />
+      );
+    }
+
+    if (overlay === "reportIncident") {
+      return (
+        <DriverReportIncidentScreen
+          onBack={() => setOverlay("liveTrip")}
+          onSubmit={() => setOverlay("incidentHistory")}
+        />
+      );
+    }
+
+    if (overlay === "manualEntry") {
       return (
         <DriverManualEntryScreen
-          onBack={() => setIsManualEntryOpen(false)}
-          onFinishCheck={() => setIsManualEntryOpen(false)}
+          onBack={() => setOverlay("scanner")}
+          onFinishCheck={() => setOverlay("scanner")}
         />
       );
     }
 
-    if (isScannerOpen) {
+    if (overlay === "scanner") {
       return (
         <DriverTripScannerScreen
-          onBack={() => setIsScannerOpen(false)}
-          onManualEntry={() => setIsManualEntryOpen(true)}
+          onBack={() => setOverlay("liveTrip")}
+          onManualEntry={() => setOverlay("manualEntry")}
         />
       );
     }
 
-    if (isLiveTripOpen) {
+    if (overlay === "liveTrip") {
       return (
         <DriverLiveTripScreen
-          onOpenIncident={() => setIsIncidentOpen(true)}
-          onOpenScanner={() => setIsScannerOpen(true)}
+          onOpenIncident={() => setOverlay("reportIncident")}
+          onOpenScanner={() => setOverlay("scanner")}
+          onOpenQueueDetails={(passenger) => {
+            setSelectedPassenger(passenger);
+            setQueueBackTarget("liveTrip");
+            setOverlay("queueDetails");
+          }}
           onEndTrip={() => {
-            setIsIncidentOpen(false);
-            setIsManualEntryOpen(false);
-            setIsScannerOpen(false);
-            setIsLiveTripOpen(false);
+            setOverlay(null);
           }}
         />
       );
@@ -72,17 +150,21 @@ export default function DriverHome({ onLogout }: DriverHomeProps) {
     }
 
     if (activeTab === "settings") {
-      return (
-        <ProfileAndSettingsScreen showBottomTabs={false} onLogout={onLogout} />
-      );
+      return <DriverSettingsScreen onLogout={onLogout} />;
     }
 
-    return <DriverDashboardScreen onStartTrip={() => setIsLiveTripOpen(true)} />;
-  }, [activeTab, isLiveTripOpen, isScannerOpen, isManualEntryOpen, isIncidentOpen, onLogout]);
+    return (
+      <DriverDashboardScreen
+        onStartTrip={() => setOverlay("liveTrip")}
+        onViewRoutes={() => setOverlay("routesList")}
+        onViewTripHistory={() => setOverlay("tripHistory")}
+      />
+    );
+  }, [activeTab, onLogout, overlay, queueBackTarget, selectedPassenger, selectedRoute]);
 
   return (
     <SafeAreaView style={styles.container}>
-      {!isLiveTripOpen && !isScannerOpen && !isManualEntryOpen && !isIncidentOpen && (
+      {!isOverlayOpen && (
         <View style={styles.topBar}>
           <View style={styles.brandRow}>
             <View style={styles.brandIcon}>
@@ -99,11 +181,11 @@ export default function DriverHome({ onLogout }: DriverHomeProps) {
         </View>
       )}
 
-      {!isLiveTripOpen && !isScannerOpen && !isManualEntryOpen && !isIncidentOpen && <View style={styles.divider} />}
+      {!isOverlayOpen && <View style={styles.divider} />}
 
       <View style={styles.body}>{activeScreen}</View>
 
-      {!isLiveTripOpen && !isScannerOpen && !isManualEntryOpen && !isIncidentOpen && (
+      {!isOverlayOpen && (
         <View style={styles.tabBar}>
           <TabButton
             label="Dashboard"
