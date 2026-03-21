@@ -6,6 +6,7 @@ type DriverLiveTripScreenProps = {
   onEndTrip?: () => void;
   onOpenScanner?: () => void;
   onOpenIncident?: () => void;
+  onOpenQueueDetails?: (passenger: { id: string; name: string; type: "Adult" | "Student" | "Senior"; tickets: string }) => void;
 };
 
 const QUEUE = [
@@ -18,6 +19,7 @@ export default function DriverLiveTripScreen({
   onEndTrip,
   onOpenScanner,
   onOpenIncident,
+  onOpenQueueDetails,
 }: DriverLiveTripScreenProps) {
   return (
     <View style={styles.screen}>
@@ -131,10 +133,20 @@ export default function DriverLiveTripScreen({
                 <Text style={styles.tickets}>• {p.tickets}</Text>
               </View>
             </View>
-            <View style={styles.queueActions}>
+            <Pressable
+              style={styles.queueActions}
+              onPress={() =>
+                onOpenQueueDetails?.({
+                  id: p.id,
+                  name: p.name,
+                  type: p.type as "Adult" | "Student" | "Senior",
+                  tickets: p.tickets,
+                })
+              }
+            >
               <Ionicons name="information-circle-outline" size={18} color="#A7BED3" />
-              <Ionicons name="checkmark-circle-outline" size={18} color="#A7BED3" />
-            </View>
+              <Ionicons name="chevron-forward-outline" size={18} color="#A7BED3" />
+            </Pressable>
           </View>
         ))}
       </ScrollView>
