@@ -5,6 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 type DriverLiveTripScreenProps = {
   onEndTrip?: () => void;
   onOpenScanner?: () => void;
+  onOpenIncident?: () => void;
 };
 
 const QUEUE = [
@@ -16,13 +17,16 @@ const QUEUE = [
 export default function DriverLiveTripScreen({
   onEndTrip,
   onOpenScanner,
+  onOpenIncident,
 }: DriverLiveTripScreenProps) {
   return (
     <View style={styles.screen}>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <Text style={styles.routeTitle}>Route 42A - Acti</Text>
-          <Ionicons name="warning-outline" size={22} color="#E01C44" />
+          <Pressable onPress={onOpenIncident}>
+            <Ionicons name="warning-outline" size={22} color="#E01C44" />
+          </Pressable>
         </View>
 
         <View style={styles.mapWrap}>
