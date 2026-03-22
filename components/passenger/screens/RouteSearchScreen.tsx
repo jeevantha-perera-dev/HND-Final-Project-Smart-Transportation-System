@@ -103,7 +103,15 @@ export default function RouteSearchScreen({ navigation }: Props) {
               <RecentRoute title="Airport -> City Mall" subtitle="Last searched 2h ago" amount="$25" />
             </View>
 
-            <Pressable style={styles.button} onPress={() => {}}>
+            <Pressable
+              style={styles.button}
+              onPress={() =>
+                navigation.navigate("AvailableBuses", {
+                  from,
+                  to,
+                })
+              }
+            >
               <Ionicons name="search-outline" size={18} color="#0A1A2B" />
               <Text style={styles.buttonText}>Search Buses</Text>
             </Pressable>

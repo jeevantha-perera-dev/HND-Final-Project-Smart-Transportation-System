@@ -11,6 +11,7 @@ export type PassengerTabsParamList = {
 export type PassengerHomeStackParamList = {
   HomeMain: undefined;
   RouteSearch: undefined;
+  AvailableBuses: { from?: string; to?: string } | undefined;
 };
 
 export type PassengerRootStackParamList = {

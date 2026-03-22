@@ -9,6 +9,7 @@ import NotificationsScreen from "./screens/NotificationsScreen";
 import RateTripScreen from "./screens/RateTripScreen";
 import LiveTrackingScreen from "./screens/LiveTrackingScreen";
 import RouteSearchScreen from "./screens/RouteSearchScreen";
+import AvailableBusesScreen from "./screens/AvailableBusesScreen";
 import PassengerHomeScreen from "./screens/PassengerHomeScreen";
 import WalletScreen from "./screens/WalletScreen";
 import {
@@ -32,6 +33,7 @@ function HomeStackScreens() {
     <HomeStack.Navigator screenOptions={{ headerShown: false, animation: "slide_from_right" }}>
       <HomeStack.Screen name="HomeMain" component={PassengerHomeScreen} />
       <HomeStack.Screen name="RouteSearch" component={RouteSearchScreen} />
+      <HomeStack.Screen name="AvailableBuses" component={AvailableBusesScreen} />
     </HomeStack.Navigator>
   );
 }
