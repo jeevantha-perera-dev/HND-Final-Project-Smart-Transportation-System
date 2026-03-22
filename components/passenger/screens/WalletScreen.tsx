@@ -61,6 +61,22 @@ const ACTIVITY = [
     tone: "orange" as const,
     icon: "gift" as const,
   },
+  {
+    id: "a4",
+    title: "Route 105-Express",
+    time: "Mon, 21,Oct",
+    amount: "-4.75",
+    tone: "blue" as const,
+    icon: "bus" as const,
+  },
+  {
+    id: "a5",
+    title: "Transfer to J.Smith",
+    time: "Mon, 20,Oct",
+    amount: "-12.00",
+    tone: "green" as const,
+    icon: "arrow-up" as const,
+  },
 ] as const;
 
 export default function WalletScreen() {
