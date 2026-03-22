@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { CommonActions } from "@react-navigation/native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -171,8 +172,16 @@ export default function CheckoutScreen({ navigation, route }: Props) {
           <Pressable
             style={styles.payBtn}
             onPress={() => {
-              /* navigate to success / QR */
-              navigation.popToTop();
+              const tabNav = navigation.getParent();
+              navigation.dispatch(
+                CommonActions.reset({
+                  index: 0,
+                  routes: [{ name: "HomeMain" }],
+                })
+              );
+              setTimeout(() => {
+                tabNav?.navigate("Wallet" as never);
+              }, 0);
             }}
           >
             <Text style={styles.payBtnText}>Confirm & Pay {totalStr}</Text>
