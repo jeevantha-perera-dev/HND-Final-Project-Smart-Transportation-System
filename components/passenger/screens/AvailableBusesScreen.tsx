@@ -95,6 +95,7 @@ export default function AvailableBusesScreen({ navigation }: Props) {
             <Ionicons name="chevron-back" size={22} color="#FFFFFF" />
           </Pressable>
           <Text style={styles.headerTitle}>Available Buses</Text>
+          <View style={{ flex: 1 }} />
           <Pressable hitSlop={12} style={styles.headerIcon}>
             <Ionicons name="options-outline" size={22} color={ACCENT} />
           </Pressable>
@@ -116,6 +117,7 @@ export default function AvailableBusesScreen({ navigation }: Props) {
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.filterRow}
+          style={styles.filterScroll}
         >
           {SORT_FILTERS.map((label) => {
             const active = sortBy === label;
@@ -236,14 +238,14 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    justifyContent: "flex-start",
     paddingHorizontal: 8,
     paddingVertical: 10,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: "#2E323D",
   },
-  headerIcon: { width: 40, alignItems: "center", justifyContent: "center" },
-  headerTitle: { color: "#FFFFFF", fontSize: 17, fontWeight: "700" },
+  headerIcon: {   paddingHorizontal: 4, alignItems: "center", justifyContent: "center" },
+  headerTitle: { color: "#FFFFFF", fontSize: 17, fontWeight: "700", marginLeft: 4 },
   subHeader: {
     flexDirection: "row",
     alignItems: "center",
@@ -276,8 +278,12 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   livePillText: { color: LIVE_BLUE, fontSize: 11, fontWeight: "600" },
-  filterRow: { gap: 8, paddingHorizontal: 16, paddingBottom: 14, alignItems: "center" },
+  filterScroll: {flexGrow: 0,flexShrink: 0}, //prevents scroll view from expanding
+  filterRow: { gap: 8, paddingHorizontal: 16, paddingBottom: 14, alignItems: "center" , flexDirection: "row"},
   filterChip: {
+    height:36,
+    alignItems:"center",
+    justifyContent:"center",
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 999,
@@ -286,7 +292,7 @@ const styles = StyleSheet.create({
     borderColor: CHIP_BORDER,
   },
   filterChipActive: { backgroundColor: ACCENT, borderColor: ACCENT },
-  filterChipText: { color: "#FFFFFF", fontSize: 14, fontWeight: "600" },
+  filterChipText: { color: "#FFFFFF", fontSize: 14, fontWeight: "600",lineHeight:18 },
   filterChipTextActive: { color: "#FFFFFF" },
   list: { flex: 1 },
   listContent: { paddingHorizontal: 16, paddingBottom: 24, gap: 12 },
