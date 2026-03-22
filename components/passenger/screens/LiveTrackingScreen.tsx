@@ -1,8 +1,7 @@
-import React from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { PassengerRootStackParamList } from "../types";
 
 const BG = "#121212";
@@ -68,7 +67,7 @@ const styles = StyleSheet.create({
     color: TEXT,
     fontSize: 18,
     fontWeight: "700",
-    textAlign: "center",
+    textAlign: "left",
     marginHorizontal: 8,
   },
   sosBtn: {
