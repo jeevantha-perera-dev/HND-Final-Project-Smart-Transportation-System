@@ -3,8 +3,14 @@ import { NavigatorScreenParams } from "@react-navigation/native";
 export type PassengerTabsParamList = {
   Home: undefined;
   Trips: undefined;
-  Notifications: undefined;
+  Wallet: undefined;
+  Alerts: undefined;
   Profile: undefined;
+};
+
+export type PassengerHomeStackParamList = {
+  HomeMain: undefined;
+  RouteSearch: undefined;
 };
 
 export type PassengerRootStackParamList = {
@@ -12,5 +18,4 @@ export type PassengerRootStackParamList = {
   QRTicket: undefined;
   RateTrip: undefined;
   LiveTracking: undefined;
-  RouteSearch: undefined;
 };

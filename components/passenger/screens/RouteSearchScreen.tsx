@@ -4,10 +4,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { PassengerRootStackParamList } from "../types";
+import { PassengerHomeStackParamList } from "../types";
 import { colors } from "../theme";
 
-type Props = NativeStackScreenProps<PassengerRootStackParamList, "RouteSearch">;
+type Props = NativeStackScreenProps<PassengerHomeStackParamList, "RouteSearch">;
 
 export default function RouteSearchScreen({ navigation }: Props) {
   const [from, setFrom] = useState("Central Terminal, Downtown");
@@ -110,13 +110,6 @@ export default function RouteSearchScreen({ navigation }: Props) {
             <Text style={styles.footerHint}>Search across 40+ transit partners in real-time</Text>
           </ScrollView>
 
-          <View style={styles.bottomBar}>
-            <FooterItem icon="home" label="Home" active />
-            <FooterItem icon="list-outline" label="Trips" />
-            <FooterItem icon="wallet-outline" label="Wallet" />
-            <FooterItem icon="notifications-outline" label="Alerts" />
-            <FooterItem icon="person-outline" label="Profile" />
-          </View>
         </View>
       </LinearGradient>
     </SafeAreaView>
@@ -176,23 +169,6 @@ function RecentRoute({ title, subtitle, amount }: { title: string; subtitle: str
       <View style={styles.amountPill}>
         <Text style={styles.amountText}>{amount}</Text>
       </View>
-    </View>
-  );
-}
-
-function FooterItem({
-  icon,
-  label,
-  active,
-}: {
-  icon: keyof typeof Ionicons.glyphMap;
-  label: string;
-  active?: boolean;
-}) {
-  return (
-    <View style={styles.footerItem}>
-      <Ionicons name={icon} size={18} color={active ? "#5EA7F0" : "#8C9EB2"} />
-      <Text style={[styles.footerLabel, active && styles.footerLabelActive]}>{label}</Text>
     </View>
   );
 }
@@ -331,17 +307,4 @@ const styles = StyleSheet.create({
   },
   buttonText: { color: "#081A2D", fontWeight: "900", fontSize: 18 },
   footerHint: { color: "#8AA1B9", textAlign: "center", fontSize: 12, marginTop: 10, marginBottom: 8 },
-  bottomBar: {
-    height: 68,
-    borderTopWidth: 1,
-    borderTopColor: "#1A2A3A",
-    backgroundColor: "#0A121D",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-around",
-    paddingBottom: 4,
-  },
-  footerItem: { alignItems: "center", gap: 2 },
-  footerLabel: { color: "#91A3B6", fontSize: 11, fontWeight: "700" },
-  footerLabelActive: { color: "#5EA7F0" },
 });
