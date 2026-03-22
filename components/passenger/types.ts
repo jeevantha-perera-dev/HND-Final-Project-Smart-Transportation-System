@@ -12,4 +12,5 @@ export type PassengerRootStackParamList = {
   QRTicket: undefined;
   RateTrip: undefined;
   LiveTracking: undefined;
+  RouteSearch: undefined;
 };
