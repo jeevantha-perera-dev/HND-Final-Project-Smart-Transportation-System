@@ -1,4 +1,4 @@
-import React from "react";
+import { Ionicons } from "@expo/vector-icons";
 import {
   Pressable,
   ScrollView,
@@ -7,7 +7,6 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
 
 const BG = "#000000";
 const SURFACE = "#1C1C1E";
@@ -56,7 +55,7 @@ const ACTIVITY = [
   },
   {
     id: "a3",
-    title: "Loyalty Reward",
+    title: "Monthly Loyalty Reward",
     time: "Mon, 18 Mar",
     amount: "+5.00",
     tone: "orange" as const,
