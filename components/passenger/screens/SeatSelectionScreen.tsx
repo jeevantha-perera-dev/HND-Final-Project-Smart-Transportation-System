@@ -1,8 +1,8 @@
-import React, { useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { useMemo, useState } from "react";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { PassengerHomeStackParamList } from "../types";
 
 const BG = "#121212";
@@ -233,7 +233,7 @@ const styles = StyleSheet.create({
     borderBottomColor: BORDER,
   },
   headerIcon: { width: 40, alignItems: "center", justifyContent: "center" },
-  headerTitle: { flex: 1, color: TEXT, fontSize: 17, fontWeight: "700", textAlign: "center" },
+  headerTitle: { flex: 1, color: TEXT, fontSize: 17, fontWeight: "700", textAlign: "left" },
   scroll: { flex: 1 },
   scrollContent: { paddingHorizontal: 16, paddingBottom: 16 },
   legend: {
