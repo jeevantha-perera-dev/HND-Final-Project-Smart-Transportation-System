@@ -148,8 +148,13 @@ export default function SeatSelectionScreen({ navigation, route }: Props) {
             style={[styles.confirmBtn, !selectedId && styles.confirmBtnDisabled]}
             disabled={!selectedId}
             onPress={() => {
-              /* hook payment / QR next */
-              navigation.goBack();
+              if (!selectedId) return;
+              navigation.navigate("Checkout", {
+                busId,
+                routeName,
+                price,
+                seatId: selectedId,
+              });
             }}
           >
             <Text style={styles.confirmBtnText}>Confirm Selection</Text>

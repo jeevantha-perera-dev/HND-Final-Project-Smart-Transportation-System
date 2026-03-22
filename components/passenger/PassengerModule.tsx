@@ -11,6 +11,7 @@ import LiveTrackingScreen from "./screens/LiveTrackingScreen";
 import RouteSearchScreen from "./screens/RouteSearchScreen";
 import AvailableBusesScreen from "./screens/AvailableBusesScreen";
 import SeatSelectionScreen from "./screens/SeatSelectionScreen";
+import CheckoutScreen from "./screens/CheckoutScreen";
 import PassengerHomeScreen from "./screens/PassengerHomeScreen";
 import WalletScreen from "./screens/WalletScreen";
 import {
@@ -36,6 +37,7 @@ function HomeStackScreens() {
       <HomeStack.Screen name="RouteSearch" component={RouteSearchScreen} />
       <HomeStack.Screen name="AvailableBuses" component={AvailableBusesScreen} />
       <HomeStack.Screen name="SeatSelection" component={SeatSelectionScreen} />
+      <HomeStack.Screen name="Checkout" component={CheckoutScreen} />
     </HomeStack.Navigator>
   );
 }
