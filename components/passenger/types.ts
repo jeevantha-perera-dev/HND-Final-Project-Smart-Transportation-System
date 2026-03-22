@@ -12,6 +12,7 @@ export type PassengerHomeStackParamList = {
   HomeMain: undefined;
   RouteSearch: undefined;
   AvailableBuses: { from?: string; to?: string } | undefined;
+  SeatSelection: { busId: string; routeName: string; price: string };
 };
 
 export type PassengerRootStackParamList = {

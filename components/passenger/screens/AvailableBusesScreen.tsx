@@ -139,7 +139,17 @@ export default function AvailableBusesScreen({ navigation }: Props) {
           showsVerticalScrollIndicator={false}
         >
           {buses.map((bus) => (
-            <BusCard key={bus.id} bus={bus} />
+            <BusCard
+              key={bus.id}
+              bus={bus}
+              onSelect={() =>
+                navigation.navigate("SeatSelection", {
+                  busId: bus.id,
+                  routeName: bus.routeName,
+                  price: bus.price,
+                })
+              }
+            />
           ))}
 
           <View style={styles.footerHint}>
@@ -156,7 +166,7 @@ export default function AvailableBusesScreen({ navigation }: Props) {
   );
 }
 
-function BusCard({ bus }: { bus: BusOption }) {
+function BusCard({ bus, onSelect }: { bus: BusOption; onSelect: () => void }) {
   return (
     <View style={styles.card}>
       <View style={styles.cardTop}>
@@ -208,7 +218,7 @@ function BusCard({ bus }: { bus: BusOption }) {
           <Text style={styles.priceLabel}>SINGLE TRIP</Text>
           <Text style={styles.priceValue}>{bus.price}</Text>
         </View>
-        <Pressable style={styles.selectBtn}>
+        <Pressable style={styles.selectBtn} onPress={onSelect}>
           <Text style={styles.selectBtnText}>Select</Text>
           <Ionicons name="chevron-forward" size={15} color="#FFFFFF" />
         </Pressable>
