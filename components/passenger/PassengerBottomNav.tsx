@@ -23,11 +23,12 @@ export default function PassengerBottomNav({ active }: Props) {
     <View style={styles.tabBar}>
       <TabButton icon="home-outline" label="Home" active={active === "Home"} onPress={() => goToTab("Home")} />
       <TabButton icon="list-outline" label="Trips" active={active === "Trips"} onPress={() => goToTab("Trips")} />
+      <TabButton icon="wallet-outline" label="Wallet" active={active === "Wallet"} onPress={() => goToTab("Wallet")} />
       <TabButton
         icon="notifications-outline"
-        label="Notifications"
-        active={active === "Notifications"}
-        onPress={() => goToTab("Notifications")}
+        label="Alerts"
+        active={active === "Alerts"}
+        onPress={() => goToTab("Alerts")}
       />
       <TabButton icon="person-outline" label="Profile" active={active === "Profile"} onPress={() => goToTab("Profile")} />
     </View>
@@ -66,9 +67,9 @@ const styles = StyleSheet.create({
     justifyContent: "space-around",
   },
   tabButton: {
+    flex: 1,
     alignItems: "center",
     gap: 2,
-    minWidth: 64,
   },
   tabLabel: {
     color: "#7F90A6",

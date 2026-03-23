@@ -2,20 +2,12 @@ import React from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
-import { CompositeScreenProps, NavigationProp } from "@react-navigation/native";
-import { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
+import { NavigationProp } from "@react-navigation/native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { SafeAreaView } from "react-native-safe-area-context";
-import {
-  PassengerHomeStackParamList,
-  PassengerRootStackParamList,
-  PassengerTabsParamList,
-} from "../types";
+import { PassengerHomeStackParamList, PassengerRootStackParamList } from "../types";
 
-type Props = CompositeScreenProps<
-  BottomTabScreenProps<PassengerTabsParamList, "Home">,
-  NativeStackScreenProps<PassengerHomeStackParamList, "HomeMain">
->;
+type Props = NativeStackScreenProps<PassengerHomeStackParamList, "HomeMain">;
 
 function navigateRootLiveTracking(navigation: Props["navigation"]) {
   const root = navigation.getParent()?.getParent() as
