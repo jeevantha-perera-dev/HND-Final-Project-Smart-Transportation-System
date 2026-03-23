@@ -2,16 +2,27 @@ import React from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
-import { CompositeScreenProps } from "@react-navigation/native";
+import { CompositeScreenProps, NavigationProp } from "@react-navigation/native";
 import { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { PassengerHomeStackParamList, PassengerTabsParamList } from "../types";
+import {
+  PassengerHomeStackParamList,
+  PassengerRootStackParamList,
+  PassengerTabsParamList,
+} from "../types";
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<PassengerTabsParamList, "Home">,
   NativeStackScreenProps<PassengerHomeStackParamList, "HomeMain">
 >;
+
+function navigateRootLiveTracking(navigation: Props["navigation"]) {
+  const root = navigation.getParent()?.getParent() as
+    | NavigationProp<PassengerRootStackParamList>
+    | undefined;
+  root?.navigate("LiveTracking");
+}
 
 const nearBuses = [
   { id: "402", title: "402 Express", destination: "to Central Station", arriving: "4 mins", seats: "12 seats available", crowd: "Low Crowd" },
@@ -84,7 +95,7 @@ export default function PassengerHomeScreen({ navigation }: Props) {
 
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.busRow}>
               {nearBuses.map((bus) => (
-                <Pressable key={bus.id} style={styles.busCard} onPress={() => navigation.navigate("LiveTracking")}>
+                <Pressable key={bus.id} style={styles.busCard} onPress={() => navigateRootLiveTracking(navigation)}>
                   <View style={styles.busTop}>
                     <View style={styles.busBadge}>
                       <Ionicons name="bus-outline" size={12} color="#74B5F7" />
