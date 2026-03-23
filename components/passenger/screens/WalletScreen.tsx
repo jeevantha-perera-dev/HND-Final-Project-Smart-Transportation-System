@@ -130,7 +130,7 @@ export default function WalletScreen() {
               <Text style={styles.quickAddText}>Add Money</Text>
             </Pressable>
             <Pressable style={styles.quickSolid}>
-              <Ionicons name="arrow-up-right" size={22} color={TEXT} />
+              <Ionicons name="arrow-up-right-box" size={22} color={TEXT} />
               <Text style={styles.quickSolidText}>Transfer</Text>
             </Pressable>
             <Pressable style={styles.quickSolid}>
