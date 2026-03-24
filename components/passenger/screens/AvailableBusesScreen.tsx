@@ -1,9 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { PassengerHomeStackParamList } from "../types";
+import { searchTrips } from "../../../services/api/trips";
 
 const ACCENT = "#5E5CE6";
 const BG = "#000000";
@@ -21,6 +22,7 @@ const PREDICTION_PURPLE = "#B4A9FF";
 type Crowd = "low" | "medium" | "high";
 
 type BusOption = {
+  tripId?: string;
   id: string;
   routeName: string;
   arrivalMins: number;
@@ -76,16 +78,47 @@ const SORT_FILTERS = ["Recommended", "Cheapest", "Earliest", "Express"] as const
 
 type Props = NativeStackScreenProps<PassengerHomeStackParamList, "AvailableBuses">;
 
-export default function AvailableBusesScreen({ navigation }: Props) {
+export default function AvailableBusesScreen({ navigation, route }: Props) {
   const [sortBy, setSortBy] = useState<(typeof SORT_FILTERS)[number]>("Recommended");
+  const [items, setItems] = useState<BusOption[]>(MOCK_BUSES);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const result = await searchTrips(route.params?.from, route.params?.to);
+        if (!mounted) return;
+        setItems(
+          result.items.map((trip) => ({
+            tripId: trip.id,
+            id: trip.routeId,
+            routeName: trip.routeName,
+            arrivalMins: trip.arrivalMins,
+            seatsLeft: trip.seatsLeft,
+            predictedSeats: trip.predictedSeats,
+            price: `$${trip.price.toFixed(2)}`,
+            express: trip.express,
+            crowd: trip.seatsLeft > 12 ? "low" : trip.seatsLeft > 5 ? "medium" : "high",
+          }))
+        );
+      } catch (err) {
+        if (!mounted) return;
+        setError(err instanceof Error ? err.message : "Could not load buses");
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [route.params?.from, route.params?.to]);
 
   const buses = useMemo(() => {
-    const copy = [...MOCK_BUSES];
+    const copy = [...items];
     if (sortBy === "Cheapest") copy.sort((a, b) => parseFloat(a.price.slice(1)) - parseFloat(b.price.slice(1)));
     if (sortBy === "Earliest") copy.sort((a, b) => a.arrivalMins - b.arrivalMins);
     if (sortBy === "Express") copy.sort((a, b) => (b.express ? 1 : 0) - (a.express ? 1 : 0));
     return copy;
-  }, [sortBy]);
+  }, [sortBy, items]);
 
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
@@ -138,12 +171,14 @@ export default function AvailableBusesScreen({ navigation }: Props) {
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
         >
+          {error ? <Text style={styles.errorText}>{error}</Text> : null}
           {buses.map((bus) => (
             <BusCard
               key={bus.id}
               bus={bus}
               onSelect={() =>
                 navigation.navigate("SeatSelection", {
+                  tripId: bus.tripId,
                   busId: bus.id,
                   routeName: bus.routeName,
                   price: bus.price,
@@ -410,5 +445,11 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     textAlign: "center",
     maxWidth: 320,
+  },
+  errorText: {
+    color: "#FF9F9F",
+    textAlign: "center",
+    marginBottom: 8,
+    fontWeight: "600",
   },
 });

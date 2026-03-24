@@ -1,6 +1,7 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { publishDriverLocation } from "../../services/api/tracking";
 
 type DriverLiveTripScreenProps = {
   onEndTrip?: () => void;
@@ -21,6 +22,32 @@ export default function DriverLiveTripScreen({
   onOpenIncident,
   onOpenQueueDetails,
 }: DriverLiveTripScreenProps) {
+  const [syncText, setSyncText] = useState("Sync location");
+
+  async function pushLocation() {
+    try {
+      const jitter = Math.random() * 0.001;
+      await publishDriverLocation({
+        tripId: "trip-demo-402",
+        vehicleId: "BUS-402",
+        latitude: 6.9271 + jitter,
+        longitude: 79.8612 + jitter,
+        speedKph: 55,
+        nextStopName: "West End Plaza",
+        etaMinutes: 4,
+        seatsAvailable: 32,
+      });
+      setSyncText("Location synced");
+    } catch {
+      setSyncText("Sync failed");
+    }
+  }
+
+  useEffect(() => {
+    const timer = setInterval(() => void pushLocation(), 12000);
+    return () => clearInterval(timer);
+  }, []);
+
   return (
     <View style={styles.screen}>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -114,8 +141,8 @@ export default function DriverLiveTripScreen({
               <Text style={styles.queueCountText}>3</Text>
             </View>
           </View>
-          <Pressable>
-            <Text style={styles.scanManual}>Scan Manual</Text>
+          <Pressable onPress={pushLocation}>
+            <Text style={styles.scanManual}>{syncText}</Text>
           </Pressable>
         </View>
 

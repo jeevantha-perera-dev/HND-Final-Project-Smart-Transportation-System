@@ -15,7 +15,13 @@ import { UserRole } from "./LoginScreen";
 type RegisterScreenProps = {
   onBack?: () => void;
   onSignIn?: () => void;
-  onCreateAccount?: (role: UserRole) => void;
+  onCreateAccount?: (payload: {
+    role: UserRole;
+    fullName: string;
+    email: string;
+    phone: string;
+    password: string;
+  }) => Promise<void> | void;
 };
 
 export default function RegisterScreen({
@@ -30,6 +36,30 @@ export default function RegisterScreen({
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [agreed, setAgreed] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  async function handleCreateAccount() {
+    setError(null);
+    if (!fullName.trim() || !email.trim() || !password.trim()) {
+      setError("Name, email, and password are required.");
+      return;
+    }
+    try {
+      setSubmitting(true);
+      await onCreateAccount?.({
+        role,
+        fullName: fullName.trim(),
+        email: email.trim().toLowerCase(),
+        phone: phone.trim(),
+        password,
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Registration failed");
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   return (
     <View style={styles.screen}>
@@ -130,12 +160,14 @@ export default function RegisterScreen({
             </Text>
           </Pressable>
 
+          {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
           <Pressable
             style={[styles.createBtn, !agreed && styles.createBtnDisabled]}
-            disabled={!agreed}
-            onPress={() => onCreateAccount?.(role)}
+            disabled={!agreed || submitting}
+            onPress={handleCreateAccount}
           >
-            <Text style={styles.createText}>Create Account</Text>
+            <Text style={styles.createText}>{submitting ? "Creating..." : "Create Account"}</Text>
             <Ionicons name="arrow-forward-outline" size={18} color="#123457" />
           </Pressable>
 
@@ -362,4 +394,11 @@ const styles = StyleSheet.create({
   securityTextWrap: { flex: 1 },
   securityTitle: { color: "#F0F7FF", fontSize: 16, fontWeight: "800", marginBottom: 2 },
   securityBody: { color: "#B2C3D5", fontSize: 12, lineHeight: 17, fontWeight: "600" },
+  errorText: {
+    color: "#FF8E8E",
+    marginHorizontal: 14,
+    marginBottom: 8,
+    fontSize: 13,
+    fontWeight: "600",
+  },
 });

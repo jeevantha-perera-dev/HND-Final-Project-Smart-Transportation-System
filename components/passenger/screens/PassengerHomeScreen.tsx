@@ -16,6 +16,23 @@ function navigateRootLiveTracking(navigation: Props["navigation"]) {
   root?.navigate("LiveTracking");
 }
 
+function navigateToAlerts(navigation: Props["navigation"]) {
+  const root = navigation.getParent()?.getParent() as
+    | NavigationProp<PassengerRootStackParamList>
+    | undefined;
+  root?.navigate("MainTabs", { screen: "Alerts" });
+}
+
+function navigateToWalletAddMoney(navigation: Props["navigation"]) {
+  const root = navigation.getParent()?.getParent() as
+    | NavigationProp<PassengerRootStackParamList>
+    | undefined;
+  root?.navigate("MainTabs", {
+    screen: "Wallet",
+    params: { screen: "AddMoney" },
+  });
+}
+
 const nearBuses = [
   { id: "402", title: "402 Express", destination: "to Central Station", arriving: "4 mins", seats: "12 seats available", crowd: "Low Crowd" },
   { id: "510", title: "Blue Line", destination: "to North Hub", arriving: "9 mins", seats: "5 seats available", crowd: "Medium" },
@@ -48,6 +65,13 @@ const quickActions = [
 ];
 
 export default function PassengerHomeScreen({ navigation }: Props) {
+  const onQuickActionPress = (id: string) => {
+    if (id === "nearest") navigation.navigate("NearestStops");
+    if (id === "favorites") navigation.navigate("Favorites");
+    if (id === "express") navigation.navigate("ExpressRoutes");
+    if (id === "nearby") navigation.navigate("NearbyStops");
+  };
+
   return (
     <SafeAreaView style={styles.safe}>
       <LinearGradient colors={["#0A121E", "#071221", "#081019"]} style={styles.gradient}>
@@ -59,7 +83,7 @@ export default function PassengerHomeScreen({ navigation }: Props) {
               </View>
               <Text style={styles.brandText}>TransitFlow</Text>
             </View>
-            <Pressable style={styles.notifyBtn}>
+            <Pressable style={styles.notifyBtn} onPress={() => navigateToAlerts(navigation)}>
               <Ionicons name="notifications-outline" size={20} color="#DEEAF8" />
             </Pressable>
           </View>
@@ -80,7 +104,7 @@ export default function PassengerHomeScreen({ navigation }: Props) {
 
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Buses Near You</Text>
-              <Pressable>
+              <Pressable onPress={() => navigation.navigate("HomeBusesList")}>
                 <Text style={styles.sectionAction}>View All</Text>
               </Pressable>
             </View>
@@ -117,7 +141,7 @@ export default function PassengerHomeScreen({ navigation }: Props) {
 
           <View style={styles.quickActionsWrap}>
             {quickActions.map((item) => (
-              <Pressable key={item.id} style={styles.quickAction}>
+              <Pressable key={item.id} style={styles.quickAction} onPress={() => onQuickActionPress(item.id)}>
                 <View style={[styles.quickIcon, { backgroundColor: item.color }]}>
                   <Ionicons name={item.icon} size={18} color="#DCEBFA" />
                 </View>
@@ -128,7 +152,7 @@ export default function PassengerHomeScreen({ navigation }: Props) {
 
           <View style={styles.insightHeader}>
             <Text style={styles.insightTitle}>Travel Insights</Text>
-            <Pressable style={styles.updatesChip}>
+            <Pressable style={styles.updatesChip} onPress={() => navigation.navigate("HomeInsights", { focus: "updates" })}>
               <Text style={styles.updatesText}>Updates</Text>
             </Pressable>
           </View>
@@ -142,7 +166,13 @@ export default function PassengerHomeScreen({ navigation }: Props) {
                 <Text style={styles.insightCardTitle}>{item.title}</Text>
                 <Text style={styles.insightCardBody}>{item.body}</Text>
               </View>
-              <Pressable>
+              <Pressable
+                onPress={() =>
+                  item.action === "Top Up"
+                    ? navigateToWalletAddMoney(navigation)
+                    : navigation.navigate("HomeInsights", { focus: "updates" })
+                }
+              >
                 <Text style={styles.insightAction}>{item.action}</Text>
               </Pressable>
             </View>
