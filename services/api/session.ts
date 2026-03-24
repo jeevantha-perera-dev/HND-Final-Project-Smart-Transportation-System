@@ -36,8 +36,12 @@ export function getSession() {
   return session;
 }
 
-export async function getAccessToken() {
-  const firebaseToken = await auth.currentUser?.getIdToken();
-  if (firebaseToken) return firebaseToken;
+export async function getAccessToken(forceRefresh = false) {
+  try {
+    const firebaseToken = await auth.currentUser?.getIdToken(forceRefresh);
+    if (firebaseToken) return firebaseToken;
+  } catch {
+    // fall through to cached session token
+  }
   return session.accessToken;
 }

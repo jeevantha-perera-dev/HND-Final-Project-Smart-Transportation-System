@@ -1,4 +1,4 @@
-import { getAccessToken, getSession } from "./session";
+import { clearSession, getAccessToken, getSession } from "./session";
 
 const API_BASE =
   process.env.EXPO_PUBLIC_API_URL?.trim() || "http://localhost:4000/api/v1";
@@ -19,31 +19,54 @@ export class ApiError extends Error {
   }
 }
 
+async function parseResponseBody<T>(response: Response): Promise<T | { error?: string } | undefined> {
+  if (response.status === 204) return undefined;
+  try {
+    return (await response.json()) as T | { error?: string };
+  } catch {
+    return undefined;
+  }
+}
+
+function toErrorMessage(data: unknown) {
+  return typeof data === "object" && data && "error" in data && (data as { error?: string }).error
+    ? String((data as { error?: string }).error)
+    : "Request failed";
+}
+
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
+  const requestOnce = async (tokenOverride?: string) => {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    if (options.auth) {
+      const token = tokenOverride ?? options.tokenOverride ?? (await getAccessToken()) ?? getSession().accessToken;
+      if (token) headers.authorization = `Bearer ${token}`;
+    }
+    return fetch(`${API_BASE}${path}`, {
+      method: options.method ?? "GET",
+      headers,
+      body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+    });
   };
 
-  if (options.auth) {
-    const token = options.tokenOverride ?? (await getAccessToken()) ?? getSession().accessToken;
-    if (token) headers.authorization = `Bearer ${token}`;
+  let response = await requestOnce();
+  let data = await parseResponseBody<T>(response);
+
+  if (options.auth && response.status === 401) {
+    const refreshedToken = await getAccessToken(true);
+    if (refreshedToken) {
+      response = await requestOnce(refreshedToken);
+      data = await parseResponseBody<T>(response);
+    }
+    if (response.status === 401) {
+      clearSession();
+      throw new ApiError(401, "Session expired. Please log in again.");
+    }
   }
 
-  const response = await fetch(`${API_BASE}${path}`, {
-    method: options.method ?? "GET",
-    headers,
-    body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
-  });
-
-  if (response.status === 204) return undefined as T;
-
-  const data = (await response.json()) as T | { error?: string };
   if (!response.ok) {
-    const message =
-      typeof data === "object" && data && "error" in data && data.error
-        ? String(data.error)
-        : "Request failed";
-    throw new ApiError(response.status, message);
+    throw new ApiError(response.status, toErrorMessage(data));
   }
   return data as T;
 }

@@ -1,10 +1,10 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { PassengerWalletStackParamList } from "../types";
-import { topupWallet } from "../../../services/api/wallet";
+import { getWallet, topupWallet } from "../../../services/api/wallet";
 
 type Props = NativeStackScreenProps<PassengerWalletStackParamList, "AddMoney">;
 
@@ -14,11 +14,32 @@ export default function AddMoneyScreen({ navigation }: Props) {
   const [selectedAmount, setSelectedAmount] = useState<number>(50);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [balance, setBalance] = useState<number>(428.5);
+  const [balanceLoaded, setBalanceLoaded] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const wallet = await getWallet();
+        if (!mounted) return;
+        setBalance(wallet.balance);
+      } catch {
+        // keep fallback balance when API is unavailable
+      } finally {
+        if (mounted) setBalanceLoaded(true);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   async function handleTopup() {
     try {
       setSubmitting(true);
       const result = await topupWallet(selectedAmount);
+      setBalance(result.balance);
       setMessage(`Top-up success. New balance: $${result.balance.toFixed(2)}`);
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Top-up failed");
@@ -40,7 +61,7 @@ export default function AddMoneyScreen({ navigation }: Props) {
 
         <View style={styles.balanceCard}>
           <Text style={styles.balanceLabel}>Wallet Balance</Text>
-          <Text style={styles.balanceValue}>$428.50</Text>
+          <Text style={styles.balanceValue}>{balanceLoaded ? `$${balance.toFixed(2)}` : "Loading..."}</Text>
           <Text style={styles.balanceHint}>Instant top-up with secure payment methods.</Text>
         </View>
 
