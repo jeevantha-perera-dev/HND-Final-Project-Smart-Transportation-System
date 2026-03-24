@@ -1,0 +1,178 @@
+[debug] [2026-03-24T12:48:19.618Z] ----------------------------------------------------------------------
+[debug] [2026-03-24T12:48:19.620Z] Command:       C:\Program Files\nodejs\node.exe C:\D\HND-Final-Project-Smart-Transportation-System\backend\node_modules\firebase-tools\lib\bin\firebase.js emulators:start --only auth,firestore,functions
+[debug] [2026-03-24T12:48:19.620Z] CLI Version:   14.27.0
+[debug] [2026-03-24T12:48:19.620Z] Platform:      win32
+[debug] [2026-03-24T12:48:19.620Z] Node Version:  v24.11.1
+[debug] [2026-03-24T12:48:19.620Z] Time:          Tue Mar 24 2026 18:18:19 GMT+0530 (India Standard Time)
+[debug] [2026-03-24T12:48:19.620Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-03-24T12:48:19.755Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] Failed to authenticate, have you run firebase login?
+[warn] !  emulators: You are not currently authenticated so some features may not work correctly. Please run firebase login to authenticate the CLI. 
+[debug] [2026-03-24T12:48:19.874Z] java version "25.0.2" 2026-01-20 LTS
+
+[debug] [2026-03-24T12:48:19.875Z] Java(TM) SE Runtime Environment (build 25.0.2+10-LTS-69)
+Java HotSpot(TM) 64-Bit Server VM (build 25.0.2+10-LTS-69, mixed mode, sharing)
+
+[debug] [2026-03-24T12:48:19.884Z] Parsed Java major version: 25
+[info] i  emulators: Starting emulators: auth, functions, firestore {"metadata":{"emulator":{"name":"hub"},"message":"Starting emulators: auth, functions, firestore"}}
+[debug] [2026-03-24T12:48:19.892Z] [logging] Logging Emulator only supports listening on one address (127.0.0.1). Not listening on ::1
+[debug] [2026-03-24T12:48:19.892Z] assigned listening specs for emulators {"user":{"ui":[{"address":"0.0.0.0","family":"IPv4","port":4001}],"auth":[{"address":"0.0.0.0","family":"IPv4","port":9099}],"firestore":[{"address":"0.0.0.0","family":"IPv4","port":8080}],"firestore.websocket":[{"address":"0.0.0.0","family":"IPv4","port":9150}],"hub":[{"address":"127.0.0.1","family":"IPv4","port":4400},{"address":"::1","family":"IPv6","port":4400}],"logging":[{"address":"127.0.0.1","family":"IPv4","port":4500}]},"metadata":{"message":"assigned listening specs for emulators"}}
+[debug] [2026-03-24T12:48:19.894Z] Emulator locator file path: C:\Users\senid\AppData\Local\Temp\hub-smart-transit-local.json
+[debug] [2026-03-24T12:48:19.894Z] [hub] writing locator at C:\Users\senid\AppData\Local\Temp\hub-smart-transit-local.json
+[debug] [2026-03-24T12:48:19.903Z] [eventarc] Eventarc Emulator only supports listening on one address (127.0.0.1). Not listening on ::1
+[debug] [2026-03-24T12:48:19.903Z] [tasks] Cloud Tasks Emulator only supports listening on one address (127.0.0.1). Not listening on ::1
+[debug] [2026-03-24T12:48:19.903Z] late-assigned ports for functions and eventarc emulators {"user":{"ui":[{"address":"0.0.0.0","family":"IPv4","port":4001}],"auth":[{"address":"0.0.0.0","family":"IPv4","port":9099}],"firestore":[{"address":"0.0.0.0","family":"IPv4","port":8080}],"firestore.websocket":[{"address":"0.0.0.0","family":"IPv4","port":9150}],"hub":[{"address":"127.0.0.1","family":"IPv4","port":4400},{"address":"::1","family":"IPv6","port":4400}],"logging":[{"address":"127.0.0.1","family":"IPv4","port":4500}],"functions":[{"address":"0.0.0.0","family":"IPv4","port":5001}],"eventarc":[{"address":"127.0.0.1","family":"IPv4","port":9299}],"tasks":[{"address":"127.0.0.1","family":"IPv4","port":9499}]},"metadata":{"message":"late-assigned ports for functions and eventarc emulators"}}
+[warn] !  functions: The following emulators are not running, calls to these services from the Functions emulator will affect production: apphosting, database, hosting, pubsub, storage, dataconnect {"metadata":{"emulator":{"name":"functions"},"message":"The following emulators are not running, calls to these services from the Functions emulator will affect production: \u001b[1mapphosting, database, hosting, pubsub, storage, dataconnect\u001b[22m"}}
+[debug] [2026-03-24T12:48:19.904Z] No OAuth tokens found
+[debug] [2026-03-24T12:48:19.905Z] No OAuth tokens found
+[debug] [2026-03-24T12:48:19.905Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-03-24T12:48:19.905Z] Failed to get Admin SDK config for smart-transit-local, falling back to cache Failed to get Admin SDK for Firebase project smart-transit-local. Please make sure the project exists and your account has permission to access it. {"name":"FirebaseError","children":[],"exit":2,"message":"Failed to get Admin SDK for Firebase project smart-transit-local. Please make sure the project exists and your account has permission to access it.","original":{"name":"FirebaseError","children":[],"exit":1,"message":"Failed to authenticate, have you run \u001b[1mfirebase login\u001b[22m?","original":{},"status":500},"status":500}
+[warn] !  functions: Unable to fetch project Admin SDK configuration, Admin SDK behavior in Cloud Functions emulator may be incorrect. {"metadata":{"emulator":{"name":"functions"},"message":"Unable to fetch project Admin SDK configuration, Admin SDK behavior in Cloud Functions emulator may be incorrect."}}
+[debug] [2026-03-24T12:48:19.914Z] Ignoring unsupported arg: auto_download {"metadata":{"emulator":{"name":"firestore"},"message":"Ignoring unsupported arg: auto_download"}}
+[debug] [2026-03-24T12:48:19.914Z] Ignoring unsupported arg: single_project_mode_error {"metadata":{"emulator":{"name":"firestore"},"message":"Ignoring unsupported arg: single_project_mode_error"}}
+[debug] [2026-03-24T12:48:19.914Z] Starting Firestore Emulator with command {"binary":"java","args":["-Dgoogle.cloud_firestore.debug_log_level=FINE","-Duser.language=en","-jar","C:\\Users\\senid\\.cache\\firebase\\emulators\\cloud-firestore-emulator-v1.19.8.jar","--host","0.0.0.0","--port",8080,"--websocket_port",9150,"--project_id","smart-transit-local","--rules","C:\\D\\HND-Final-Project-Smart-Transportation-System\\firestore.rules","--single_project_mode",true,"--functions_emulator","127.0.0.1:5001"],"optionalArgs":["port","webchannel_port","host","rules","websocket_port","functions_emulator","seed_from_export","project_id","single_project_mode"],"joinArgs":false,"shell":false,"port":8080} {"metadata":{"emulator":{"name":"firestore"},"message":"Starting Firestore Emulator with command {\"binary\":\"java\",\"args\":[\"-Dgoogle.cloud_firestore.debug_log_level=FINE\",\"-Duser.language=en\",\"-jar\",\"C:\\\\Users\\\\senid\\\\.cache\\\\firebase\\\\emulators\\\\cloud-firestore-emulator-v1.19.8.jar\",\"--host\",\"0.0.0.0\",\"--port\",8080,\"--websocket_port\",9150,\"--project_id\",\"smart-transit-local\",\"--rules\",\"C:\\\\D\\\\HND-Final-Project-Smart-Transportation-System\\\\firestore.rules\",\"--single_project_mode\",true,\"--functions_emulator\",\"127.0.0.1:5001\"],\"optionalArgs\":[\"port\",\"webchannel_port\",\"host\",\"rules\",\"websocket_port\",\"functions_emulator\",\"seed_from_export\",\"project_id\",\"single_project_mode\"],\"joinArgs\":false,\"shell\":false,\"port\":8080}"}}
+[info] i  firestore: Firestore Emulator logging to firestore-debug.log {"metadata":{"emulator":{"name":"firestore"},"message":"Firestore Emulator logging to \u001b[1mfirestore-debug.log\u001b[22m"}}
+[info] +  firestore: Firestore Emulator UI websocket is running on 9150. {"metadata":{"emulator":{"name":"firestore"},"message":"Firestore Emulator UI websocket is running on 9150."}}
+[info] i  functions: Watching "C:\D\HND-Final-Project-Smart-Transportation-System\backend" for Cloud Functions... {"metadata":{"emulator":{"name":"functions"},"message":"Watching \"C:\\D\\HND-Final-Project-Smart-Transportation-System\\backend\" for Cloud Functions..."}}
+[debug] [2026-03-24T12:48:25.999Z] Validating nodejs source
+[warn] !  functions: package.json indicates an outdated version of firebase-functions. Please upgrade using npm install --save firebase-functions@latest in your functions directory. 
+[warn] !  functions: Please note that there will be breaking changes when you upgrade. 
+[debug] [2026-03-24T12:48:27.008Z] > [functions] package.json contents: {
+  "name": "backend",
+  "version": "1.0.0",
+  "description": "Smart Transportation backend API",
+  "main": "dist/functions.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "firebase:emulators": "firebase emulators:start --only auth,firestore,functions",
+    "firebase:deploy:functions": "firebase deploy --only functions",
+    "seed": "tsx src/seed.ts",
+    "test": "node -e \"console.log('No tests configured yet')\""
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.6",
+    "dotenv": "^17.3.1",
+    "express": "^5.2.1",
+    "firebase-admin": "^13.4.0",
+    "firebase-functions": "^6.6.0",
+    "helmet": "^8.1.0",
+    "morgan": "^1.10.1",
+    "socket.io": "^4.8.3",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/morgan": "^1.9.10",
+    "@types/node": "^25.5.0",
+    "firebase-tools": "^14.20.0",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.2"
+  }
+}
+[debug] [2026-03-24T12:48:27.008Z] Building nodejs source
+[debug] [2026-03-24T12:48:27.008Z] Failed to find version of module node: reached end of search path C:\D\HND-Final-Project-Smart-Transportation-System\backend\node_modules
+[warn] !  functions: Your requested "node" version "20" doesn't match your global version "24". Using node@24 from host. 
+[info] i  functions: Loaded environment variables from .env. 
+[debug] [2026-03-24T12:48:27.011Z] Could not find functions.yaml. Must use http discovery
+[debug] [2026-03-24T12:48:27.016Z] Found firebase-functions binary at 'C:\D\HND-Final-Project-Smart-Transportation-System\backend\node_modules\.bin\firebase-functions'
+[info] Serving at port 8628
+
+[info] [dotenv@17.3.1] injecting env (14) from .env -- tip: 🔐 prevent committing .env to code: https://dotenvx.com/precommit
+
+[debug] [2026-03-24T12:48:27.578Z] Got response from /__/functions.yaml {"endpoints":{"api":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","labels":{},"httpsTrigger":{},"entryPoint":"api"}},"specVersion":"v1alpha1","requiredAPIs":[],"extensions":{}}
+[info] +  functions: Loaded functions definitions from source: api. {"metadata":{"emulator":{"name":"functions"},"message":"Loaded functions definitions from source: api."}}
+[info] +  functions[us-central1-api]: http function initialized (http://127.0.0.1:5001/smart-transit-local/us-central1/api). {"metadata":{"emulator":{"name":"functions"},"message":"\u001b[1mhttp\u001b[22m function initialized (http://127.0.0.1:5001/smart-transit-local/us-central1/api)."}}
+[debug] [2026-03-24T12:48:31.615Z] Could not find VSCode notification endpoint: FetchError: request to http://localhost:40001/vscode/notify failed, reason: . If you are not running the Firebase Data Connect VSCode extension, this is expected and not an issue.
+[info] 
+┌─────────────────────────────────────────────────────────────┐
+│ ✔  All emulators ready! It is now safe to connect your app. │
+│ i  View Emulator UI at http://127.0.0.1:4001/               │
+└─────────────────────────────────────────────────────────────┘
+
+┌────────────────┬──────────────┬─────────────────────────────────┐
+│ Emulator       │ Host:Port    │ View in Emulator UI             │
+├────────────────┼──────────────┼─────────────────────────────────┤
+│ Authentication │ 0.0.0.0:9099 │ http://127.0.0.1:4001/auth      │
+├────────────────┼──────────────┼─────────────────────────────────┤
+│ Functions      │ 0.0.0.0:5001 │ http://127.0.0.1:4001/functions │
+├────────────────┼──────────────┼─────────────────────────────────┤
+│ Firestore      │ 0.0.0.0:8080 │ http://127.0.0.1:4001/firestore │
+└────────────────┴──────────────┴─────────────────────────────────┘
+  Emulator Hub host: 127.0.0.1 port: 4400
+  Other reserved ports: 4500, 9150
+
+Issues? Report them at https://github.com/firebase/firebase-tools/issues and attach the *-debug.log files.
+ 
+[debug] [2026-03-24T13:01:23.280Z] >>> [apiv2][query] POST http://127.0.0.1:5001/functions/projects/smart-transit-local/trigger_multicast [none]
+[debug] [2026-03-24T13:01:23.280Z] >>> [apiv2][body] POST http://127.0.0.1:5001/functions/projects/smart-transit-local/trigger_multicast {"eventId":"6b92fcda-1cb8-4396-9119-deb0d1c77450","eventType":"providers/firebase.auth/eventTypes/user.create","resource":{"name":"projects/smart-transit-local","service":"firebaseauth.googleapis.com"},"params":{},"timestamp":"2026-03-24T13:01:23.279Z","data":{"uid":"91qO7lF3XPAFmkPm4y2Ix5ce9viO","email":"passenger@smartbus.local","emailVerified":false,"displayName":"Passenger Demo","metadata":{"creationTime":"2026-03-24T13:01:23.278Z","lastSignInTime":"2026-03-24T13:01:23.278Z"},"customClaims":{},"providerData":[{"rawId":"passenger@smartbus.local","providerId":"password","displayName":"Passenger Demo","email":"passenger@smartbus.local","federatedId":"passenger@smartbus.local"}]}}
+[debug] [2026-03-24T13:01:23.285Z] <<< [apiv2][status] POST http://127.0.0.1:5001/functions/projects/smart-transit-local/trigger_multicast 200
+[debug] [2026-03-24T13:01:23.285Z] <<< [apiv2][body] POST http://127.0.0.1:5001/functions/projects/smart-transit-local/trigger_multicast {"status":"multicast_acknowledged"}
+[debug] [2026-03-24T13:01:23.292Z] >>> [apiv2][query] POST http://127.0.0.1:5001/functions/projects/smart-transit-local/trigger_multicast [none]
+[debug] [2026-03-24T13:01:23.292Z] >>> [apiv2][body] POST http://127.0.0.1:5001/functions/projects/smart-transit-local/trigger_multicast {"eventId":"666b98d2-0e18-441d-b4bd-92929906c2da","eventType":"providers/firebase.auth/eventTypes/user.create","resource":{"name":"projects/smart-transit-local","service":"firebaseauth.googleapis.com"},"params":{},"timestamp":"2026-03-24T13:01:23.292Z","data":{"uid":"BKHJVVlXpfTaKSpm6vGFgpqvWxJe","email":"driver@smartbus.local","emailVerified":false,"displayName":"Driver Demo","metadata":{"creationTime":"2026-03-24T13:01:23.292Z","lastSignInTime":"2026-03-24T13:01:23.292Z"},"customClaims":{},"providerData":[{"rawId":"driver@smartbus.local","providerId":"password","displayName":"Driver Demo","email":"driver@smartbus.local","federatedId":"driver@smartbus.local"}]}}
+[debug] [2026-03-24T13:01:23.296Z] <<< [apiv2][status] POST http://127.0.0.1:5001/functions/projects/smart-transit-local/trigger_multicast 200
+[debug] [2026-03-24T13:01:23.296Z] <<< [apiv2][body] POST http://127.0.0.1:5001/functions/projects/smart-transit-local/trigger_multicast {"status":"multicast_acknowledged"}
+[debug] [2026-03-24T13:09:11.356Z] File C:\D\HND-Final-Project-Smart-Transportation-System\backend\src\lib\auth.ts changed, reloading triggers {"metadata":{"emulator":{"name":"functions"},"message":"File C:\\D\\HND-Final-Project-Smart-Transportation-System\\backend\\src\\lib\\auth.ts changed, reloading triggers"}}
+[debug] [2026-03-24T13:09:12.363Z] Validating nodejs source
+[warn] !  functions: package.json indicates an outdated version of firebase-functions. Please upgrade using npm install --save firebase-functions@latest in your functions directory. 
+[warn] !  functions: Please note that there will be breaking changes when you upgrade. 
+[debug] [2026-03-24T13:09:13.500Z] > [functions] package.json contents: {
+  "name": "backend",
+  "version": "1.0.0",
+  "description": "Smart Transportation backend API",
+  "main": "dist/functions.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "firebase:emulators": "firebase emulators:start --only auth,firestore,functions",
+    "firebase:deploy:functions": "firebase deploy --only functions",
+    "seed": "tsx src/seed.ts",
+    "test": "node -e \"console.log('No tests configured yet')\""
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.6",
+    "dotenv": "^17.3.1",
+    "express": "^5.2.1",
+    "firebase-admin": "^13.4.0",
+    "firebase-functions": "^6.6.0",
+    "helmet": "^8.1.0",
+    "morgan": "^1.10.1",
+    "socket.io": "^4.8.3",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/morgan": "^1.9.10",
+    "@types/node": "^25.5.0",
+    "firebase-tools": "^14.20.0",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.2"
+  }
+}
+[debug] [2026-03-24T13:09:13.500Z] Building nodejs source
+[debug] [2026-03-24T13:09:13.500Z] Failed to find version of module node: reached end of search path C:\D\HND-Final-Project-Smart-Transportation-System\backend\node_modules
+[warn] !  functions: Your requested "node" version "20" doesn't match your global version "24". Using node@24 from host. 
+[info] i  functions: Loaded environment variables from .env. 
+[debug] [2026-03-24T13:09:13.502Z] Could not find functions.yaml. Must use http discovery
+[debug] [2026-03-24T13:09:13.507Z] Found firebase-functions binary at 'C:\D\HND-Final-Project-Smart-Transportation-System\backend\node_modules\.bin\firebase-functions'
+[info] Serving at port 8243
+
+[info] [dotenv@17.3.1] injecting env (14) from .env -- tip: ⚙️  enable debug logging with { debug: true }
+
+[debug] [2026-03-24T13:09:13.991Z] Got response from /__/functions.yaml {"endpoints":{"api":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","labels":{},"httpsTrigger":{},"entryPoint":"api"}},"specVersion":"v1alpha1","requiredAPIs":[],"extensions":{}}
+[info] +  functions: Loaded functions definitions from source: api. {"metadata":{"emulator":{"name":"functions"},"message":"Loaded functions definitions from source: api."}}

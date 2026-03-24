@@ -18,7 +18,17 @@ export async function requireAuth(req: Request, _res: Response, next: NextFuncti
     const role = USER_ROLES.includes(resolvedRole) ? resolvedRole : "PASSENGER";
     req.auth = { userId: decoded.uid, role };
     return next();
-  } catch {
+  } catch (error) {
+    if (process.env.NODE_ENV !== "production") {
+      const details =
+        error && typeof error === "object"
+          ? {
+              code: "code" in error ? String((error as { code?: unknown }).code ?? "unknown") : "unknown",
+              message: "message" in error ? String((error as { message?: unknown }).message ?? "unknown") : "unknown",
+            }
+          : { code: "unknown", message: String(error) };
+      console.warn("Auth token verification failed", details);
+    }
     return next(new HttpError(401, "Invalid or expired token"));
   }
 }

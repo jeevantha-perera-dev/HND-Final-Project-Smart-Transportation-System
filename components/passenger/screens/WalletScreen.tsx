@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
+import { useFocusEffect } from "@react-navigation/native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import {
   Pressable,
   ScrollView,
@@ -100,32 +101,36 @@ export default function WalletScreen({ navigation }: Props) {
   const [balance, setBalance] = useState(428.5);
   const [activity, setActivity] = useState<ActivityRow[]>(ACTIVITY);
 
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        const wallet = await getWallet();
-        const history = await getWalletHistory();
-        if (!mounted) return;
-        setBalance(wallet.balance);
-        setActivity(
-          history.items.slice(0, 5).map((item, idx) => ({
-            id: item.id ?? `h-${idx}`,
-            title: item.reference ?? "Wallet transaction",
-            time: new Date(item.createdAt ?? Date.now()).toLocaleString(),
-            amount: Number(item.amount) >= 0 ? `+${Number(item.amount).toFixed(2)}` : `${Number(item.amount).toFixed(2)}`,
-            tone: Number(item.amount) >= 0 ? "green" : "blue",
-            icon: Number(item.amount) >= 0 ? "arrow-up" : "bus",
-          }))
-        );
-      } catch {
-        // keep existing mock display when backend is unavailable
-      }
-    })();
-    return () => {
-      mounted = false;
-    };
+  const loadWalletData = useCallback(async (isActive: () => boolean) => {
+    try {
+      const wallet = await getWallet();
+      const history = await getWalletHistory();
+      if (!isActive()) return;
+      setBalance(wallet.balance);
+      setActivity(
+        history.items.slice(0, 5).map((item, idx) => ({
+          id: item.id ?? `h-${idx}`,
+          title: item.reference ?? "Wallet transaction",
+          time: new Date(item.createdAt ?? Date.now()).toLocaleString(),
+          amount: Number(item.amount) >= 0 ? `+${Number(item.amount).toFixed(2)}` : `${Number(item.amount).toFixed(2)}`,
+          tone: Number(item.amount) >= 0 ? "green" : "blue",
+          icon: Number(item.amount) >= 0 ? "arrow-up" : "bus",
+        }))
+      );
+    } catch {
+      // keep existing mock display when backend is unavailable
+    }
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      void loadWalletData(() => active);
+      return () => {
+        active = false;
+      };
+    }, [loadWalletData])
+  );
 
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>

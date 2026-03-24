@@ -90,6 +90,14 @@ Use this for the Firebase-first backend (Auth + Firestore + Functions-compatible
 - Create an SOS event and verify response includes reverse-geocoded address.
 - Validate `/api/v1/places/*` and `/api/v1/routing/*` endpoints (OSM-powered).
 
+## Auth Token Troubleshooting (Local Emulators)
+
+- If you see `Invalid or expired token` after emulators or backend restart, sign out and log in again.
+- Confirm emulators are running on `9099` (Auth) and `8080` (Firestore), then reseed:
+  - `npm run firebase:seed`
+- Restart backend and Expo so they reconnect to the current emulator session.
+- Ensure root `.env` uses `EXPO_PUBLIC_FIREBASE_AUTH_EMULATOR_HOST=10.0.2.2:9099` for Android emulator.
+
 ## Cutover And Rollback
 
 - Cutover mode is controlled by backend URL and Firebase env keys.

@@ -1,27 +1,203 @@
-import React, { useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import React, { useEffect, useRef, useState } from "react";
+import { FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
+import * as Location from "expo-location";
 import { NavigationProp } from "@react-navigation/native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { PassengerHomeStackParamList, PassengerRootStackParamList } from "../types";
 import { colors } from "../theme";
+import { reverseGeocode } from "../../../services/api/places";
 
 type Props = NativeStackScreenProps<PassengerHomeStackParamList, "RouteSearch">;
 
-export default function RouteSearchScreen({ navigation }: Props) {
-  const [from, setFrom] = useState("Central Terminal, Downtown");
-  const [to, setTo] = useState("Destination City");
-  const [selectedDate, setSelectedDate] = useState("TODAY");
-  const [selectedPref, setSelectedPref] = useState("AC");
+function toDateKey(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(
+    2,
+    "0"
+  )}`;
+}
 
-  const navigateRoot = (screen: "CalendarPicker" | "RouteOptions") => {
+function parseDateKey(value: string) {
+  const [year, month, day] = value.split("-").map(Number);
+  if (!year || !month || !day) return null;
+  return new Date(year, month - 1, day);
+}
+
+function dateDiffInDays(from: Date, to: Date) {
+  const fromUtc = Date.UTC(from.getFullYear(), from.getMonth(), from.getDate());
+  const toUtc = Date.UTC(to.getFullYear(), to.getMonth(), to.getDate());
+  return Math.floor((toUtc - fromUtc) / (24 * 60 * 60 * 1000));
+}
+
+export default function RouteSearchScreen({ navigation, route }: Props) {
+  const defaultFrom = "Central Terminal, Downtown";
+  const [from, setFrom] = useState(defaultFrom);
+  const [to, setTo] = useState("");
+  const [selectedDate, setSelectedDate] = useState(() => {
+    const today = new Date();
+    return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(
+      today.getDate()
+    ).padStart(2, "0")}`;
+  });
+  const [selectedPref, setSelectedPref] = useState("AC");
+  const [visibleDateCount, setVisibleDateCount] = useState(30);
+  const [locatingOrigin, setLocatingOrigin] = useState(false);
+  const [locationNote, setLocationNote] = useState<string | null>(null);
+  const hasEditedFromRef = useRef(false);
+  const fromValueRef = useRef(from);
+
+  const navigateRoot = (
+    screen: "CalendarPicker" | "RouteOptions",
+    params?: PassengerRootStackParamList["CalendarPicker"]
+  ) => {
     const root = navigation.getParent()?.getParent() as
       | NavigationProp<PassengerRootStackParamList>
       | undefined;
+    if (screen === "CalendarPicker") {
+      root?.navigate(screen, params);
+      return;
+    }
     root?.navigate(screen);
   };
+
+  useEffect(() => {
+    fromValueRef.current = from;
+  }, [from]);
+
+  useEffect(() => {
+    const incomingDate = route.params?.selectedDate;
+    if (incomingDate) {
+      setSelectedDate(incomingDate);
+    }
+  }, [route.params?.selectedDate]);
+
+  const startDateRef = useRef(() => {
+    const today = new Date();
+    return new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  });
+
+  const travelDates = Array.from({ length: visibleDateCount }, (_, offset) => {
+    const date = startDateRef.current();
+    date.setDate(date.getDate() + offset);
+    const key = toDateKey(date);
+    const top =
+      offset === 0
+        ? "TODAY"
+        : offset === 1
+          ? "TOMORROW"
+          : date.toLocaleDateString("en-US", { weekday: "short" }).toUpperCase();
+
+    return {
+      key,
+      top,
+      day: String(date.getDate()),
+      mon: date.toLocaleDateString("en-US", { month: "short" }),
+    };
+  });
+
+  useEffect(() => {
+    const parsedSelected = parseDateKey(selectedDate);
+    if (!parsedSelected) return;
+    const startDate = startDateRef.current();
+    const diff = dateDiffInDays(startDate, parsedSelected);
+    if (diff >= visibleDateCount - 7) {
+      setVisibleDateCount((count) => Math.max(count, diff + 30));
+    }
+  }, [selectedDate, visibleDateCount]);
+
+  const selectedDateObj = parseDateKey(selectedDate);
+  const pinnedTop = selectedDateObj
+    ? selectedDateObj.toLocaleDateString("en-US", { weekday: "short" }).toUpperCase()
+    : "DATE";
+  const pinnedDay = selectedDateObj ? String(selectedDateObj.getDate()) : "--";
+  const pinnedMon = selectedDateObj ? selectedDateObj.toLocaleDateString("en-US", { month: "short" }) : "---";
+
+  function toShortAddress(formattedAddress: string) {
+    const parts = formattedAddress
+      .split(",")
+      .map((part) => part.trim())
+      .filter(Boolean);
+    if (parts.length <= 2) return formattedAddress;
+
+    const country = parts[parts.length - 1];
+    const adminPattern = /\b(district|province|state|county|region)\b/i;
+    const postalPattern = /^\d{3,}$/;
+
+    let locality = "";
+    for (let i = parts.length - 2; i >= 0; i -= 1) {
+      const part = parts[i];
+      if (postalPattern.test(part)) continue;
+      if (adminPattern.test(part)) continue;
+      locality = part;
+      break;
+    }
+
+    if (!locality) return `${parts[0]}, ${country}`;
+    return `${locality}, ${country}`;
+  }
+
+  async function handleUseCurrentLocation() {
+    const currentFrom = fromValueRef.current;
+    const canAutofill =
+      !hasEditedFromRef.current && (currentFrom.trim().length === 0 || currentFrom === defaultFrom);
+
+    try {
+      setLocatingOrigin(true);
+      setLocationNote(null);
+
+      const permission = await Location.requestForegroundPermissionsAsync();
+      if (!permission.granted) {
+        setLocationNote("Location permission denied. You can type your pickup location manually.");
+        return;
+      }
+
+      const position = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      const latitude = position.coords.latitude;
+      const longitude = position.coords.longitude;
+
+      // Always provide at least coordinates after GPS succeeds.
+      if (canAutofill) {
+        setFrom(`${latitude.toFixed(5)}, ${longitude.toFixed(5)}`);
+      }
+
+      try {
+        const localResult = await Location.reverseGeocodeAsync({ latitude, longitude });
+        const firstLocal = localResult[0];
+        const localShort = firstLocal
+          ? `${firstLocal.city || firstLocal.district || firstLocal.subregion || firstLocal.region || ""}${
+              firstLocal.country ? `, ${firstLocal.country}` : ""
+            }`.trim()
+          : "";
+
+        if (localShort && canAutofill && !localShort.startsWith(",")) {
+          setFrom(localShort);
+          return;
+        }
+
+        const response = await reverseGeocode(latitude, longitude);
+        const formattedAddress = response.results?.[0]?.formatted_address?.trim();
+        if (formattedAddress && canAutofill) {
+          setFrom(toShortAddress(formattedAddress));
+        } else if (!formattedAddress) {
+          setLocationNote("Using coordinates. Could not resolve street address.");
+        }
+      } catch {
+        setLocationNote("Using coordinates. Could not resolve street address.");
+      }
+    } catch {
+      setLocationNote("Could not fetch current location right now. Please enter it manually.");
+    } finally {
+      setLocatingOrigin(false);
+    }
+  }
+
+  useEffect(() => {
+    void handleUseCurrentLocation();
+  }, []);
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -33,9 +209,7 @@ export default function RouteSearchScreen({ navigation }: Props) {
                 <Ionicons name="chevron-back" size={20} color="#D6E7F7" />
               </Pressable>
               <Text style={styles.title}>Find a Bus</Text>
-              <Pressable onPress={() => navigateRoot("RouteOptions")}>
-                <Ionicons name="options-outline" size={18} color="#A4B9CE" />
-              </Pressable>
+              <View style={styles.headerPlaceholder} />
             </View>
 
             <View style={styles.titleRow}>
@@ -47,8 +221,23 @@ export default function RouteSearchScreen({ navigation }: Props) {
             </View>
 
             <View style={styles.inputStack}>
-              <Input value={from} onChangeText={setFrom} icon="location-outline" />
-              <Input value={to} onChangeText={setTo} icon="location-outline" danger />
+              <Input
+                value={from}
+                onChangeText={(value) => {
+                  hasEditedFromRef.current = true;
+                  setFrom(value);
+                }}
+                icon="location-outline"
+              />
+              {locatingOrigin ? <Text style={styles.locationNote}>Detecting your current location...</Text> : null}
+              {!locatingOrigin && locationNote ? <Text style={styles.locationNote}>{locationNote}</Text> : null}
+              <Input
+                value={to}
+                onChangeText={setTo}
+                icon="location-outline"
+                danger
+                placeholder="Enter destination"
+              />
               <Pressable
                 style={styles.swapBtn}
                 onPress={() => {
@@ -66,33 +255,40 @@ export default function RouteSearchScreen({ navigation }: Props) {
                 <Ionicons name="calendar-outline" size={14} color="#A7BCD1" />
                 <Text style={styles.blockTitle}>Travel Date</Text>
               </View>
-              <Pressable onPress={() => navigateRoot("CalendarPicker")}>
+              <Pressable onPress={() => navigateRoot("CalendarPicker", { selectedDate })}>
                 <Text style={styles.calendarText}>View Calendar</Text>
               </Pressable>
             </View>
 
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
-              {[
-                { key: "TODAY", day: "24", mon: "Oct" },
-                { key: "TOMORROW", day: "25", mon: "Oct" },
-                { key: "SUN", day: "26", mon: "Oct" },
-                { key: "MON", day: "27", mon: "Oct" },
-                { key: "TUE", day: "28", mon: "Oct" },
-              ].map((item) => {
-                const active = selectedDate === item.key;
-                return (
-                  <Pressable
-                    key={item.key}
-                    style={[styles.dateChip, active && styles.dateChipActive]}
-                    onPress={() => setSelectedDate(item.key)}
-                  >
-                    <Text style={[styles.dateChipTop, active && styles.dateChipTopActive]}>{item.key}</Text>
-                    <Text style={[styles.dateChipDay, active && styles.dateChipDayActive]}>{item.day}</Text>
-                    <Text style={[styles.dateChipMon, active && styles.dateChipMonActive]}>{item.mon}</Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
+            <View style={styles.dateRowWrap}>
+              <View style={styles.dateChipPinned}>
+                <Text style={styles.dateChipPinnedLabel}>SELECTED</Text>
+                <Text style={styles.dateChipPinnedTop}>{pinnedTop}</Text>
+                <Text style={styles.dateChipPinnedDay}>{pinnedDay}</Text>
+                <Text style={styles.dateChipPinnedMon}>{pinnedMon}</Text>
+              </View>
+
+              <FlatList
+                style={styles.dateList}
+                horizontal
+                data={travelDates}
+                keyExtractor={(item) => item.key}
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.chipRow}
+                onEndReachedThreshold={0.7}
+                onEndReached={() => setVisibleDateCount((count) => count + 30)}
+                renderItem={({ item }) => {
+                  const active = selectedDate === item.key;
+                  return (
+                    <Pressable style={[styles.dateChip, active && styles.dateChipActive]} onPress={() => setSelectedDate(item.key)}>
+                      <Text style={[styles.dateChipTop, active && styles.dateChipTopActive]}>{item.top}</Text>
+                      <Text style={[styles.dateChipDay, active && styles.dateChipDayActive]}>{item.day}</Text>
+                      <Text style={[styles.dateChipMon, active && styles.dateChipMonActive]}>{item.mon}</Text>
+                    </Pressable>
+                  );
+                }}
+              />
+            </View>
 
             <Text style={styles.sectionLabel}>PREFERENCES</Text>
             <View style={styles.prefRow}>
@@ -148,16 +344,24 @@ function Input({
   onChangeText,
   icon,
   danger,
+  placeholder,
 }: {
   value: string;
   onChangeText: (text: string) => void;
   icon: keyof typeof Ionicons.glyphMap;
   danger?: boolean;
+  placeholder?: string;
 }) {
   return (
     <View style={styles.inputWrap}>
       <Ionicons name={icon} size={16} color={danger ? "#D46363" : "#4877AA"} />
-      <TextInput value={value} onChangeText={onChangeText} style={styles.input} placeholderTextColor="#7C93AE" />
+      <TextInput
+        value={value}
+        onChangeText={onChangeText}
+        style={styles.input}
+        placeholder={placeholder}
+        placeholderTextColor="#7C93AE"
+      />
     </View>
   );
 }
@@ -214,6 +418,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 14,
   },
+  headerPlaceholder: { width: 20, height: 20 },
   title: { color: "#E6F1FC", fontSize: 18, fontWeight: "800" },
   titleRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
   sectionHeading: { color: "#E9F3FE", fontSize: 32, fontWeight: "900" },
@@ -246,6 +451,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   input: { flex: 1, color: "#DFECF9", fontSize: 16, fontWeight: "700" },
+  locationNote: { color: "#9EB4CB", fontSize: 11, marginTop: -4 },
   swapBtn: {
     position: "absolute",
     right: 12,
@@ -263,7 +469,23 @@ const styles = StyleSheet.create({
   blockHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
   blockTitle: { color: "#D3DFED", fontSize: 15, fontWeight: "800" },
   calendarText: { color: "#6FA4E7", fontSize: 12, fontWeight: "700" },
-  chipRow: { gap: 8, paddingRight: 8, marginBottom: 18 },
+  dateRowWrap: { flexDirection: "row", gap: 10, marginBottom: 18 },
+  dateList: { flex: 1 },
+  chipRow: { gap: 8, paddingRight: 8 },
+  dateChipPinned: {
+    width: 88,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#3F6F9F",
+    backgroundColor: "#234E7A",
+    alignItems: "center",
+    paddingTop: 6,
+    paddingBottom: 8,
+  },
+  dateChipPinnedLabel: { color: "#C9E4FF", fontSize: 9, fontWeight: "900", letterSpacing: 0.4 },
+  dateChipPinnedTop: { color: "#DDEEFF", fontSize: 10, fontWeight: "900", marginTop: 1 },
+  dateChipPinnedDay: { color: "#F4FAFF", fontSize: 22, fontWeight: "900", lineHeight: 24, marginVertical: 1 },
+  dateChipPinnedMon: { color: "#D2E8FF", fontSize: 11, fontWeight: "800" },
   dateChip: {
     width: 72,
     borderRadius: 12,

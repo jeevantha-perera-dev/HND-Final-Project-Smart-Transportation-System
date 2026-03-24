@@ -10,7 +10,7 @@ export type PassengerTabsParamList = {
 
 export type PassengerHomeStackParamList = {
   HomeMain: undefined;
-  RouteSearch: undefined;
+  RouteSearch: { selectedDate?: string } | undefined;
   AvailableBuses: { from?: string; to?: string } | undefined;
   SeatSelection: { tripId?: string; busId: string; routeName: string; price: string };
   Checkout: {
@@ -45,7 +45,7 @@ export type PassengerRootStackParamList = {
   QRTicket: undefined;
   RateTrip: undefined;
   LiveTracking: undefined;
-  CalendarPicker: undefined;
+  CalendarPicker: { selectedDate?: string } | undefined;
   RouteOptions: undefined;
   EmergencySOS: undefined;
 };
