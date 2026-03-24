@@ -20,7 +20,7 @@ const RESERVED_IDS = new Set(["1A", "1B", "2B", "3C", "4A"]);
 type Props = NativeStackScreenProps<PassengerHomeStackParamList, "SeatSelection">;
 
 export default function SeatSelectionScreen({ navigation, route }: Props) {
-  const { busId = "—", routeName = "Route", price = "$0.00" } = route.params ?? {};
+  const { tripId, busId = "—", routeName = "Route", price = "$0.00" } = route.params ?? {};
   const baseFare = useMemo(() => {
     const n = parseFloat(String(price).replace(/[^0-9.]/g, ""));
     return Number.isFinite(n) ? n : 0;
@@ -150,6 +150,7 @@ export default function SeatSelectionScreen({ navigation, route }: Props) {
             onPress={() => {
               if (!selectedId) return;
               navigation.navigate("Checkout", {
+                tripId,
                 busId,
                 routeName,
                 price,

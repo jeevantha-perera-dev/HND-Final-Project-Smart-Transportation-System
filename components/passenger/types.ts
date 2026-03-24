@@ -3,7 +3,7 @@ import { NavigatorScreenParams } from "@react-navigation/native";
 export type PassengerTabsParamList = {
   Home: undefined;
   Trips: undefined;
-  Wallet: undefined;
+  Wallet: NavigatorScreenParams<PassengerWalletStackParamList> | undefined;
   Alerts: undefined;
   Profile: undefined;
 };
@@ -12,8 +12,9 @@ export type PassengerHomeStackParamList = {
   HomeMain: undefined;
   RouteSearch: undefined;
   AvailableBuses: { from?: string; to?: string } | undefined;
-  SeatSelection: { busId: string; routeName: string; price: string };
+  SeatSelection: { tripId?: string; busId: string; routeName: string; price: string };
   Checkout: {
+    tripId?: string;
     busId: string;
     routeName: string;
     price: string;
@@ -21,6 +22,22 @@ export type PassengerHomeStackParamList = {
     fromStop?: string;
     toStop?: string;
   };
+  HomeBusesList: undefined;
+  NearestStops: undefined;
+  Favorites: undefined;
+  ExpressRoutes: undefined;
+  NearbyStops: undefined;
+  HomeInsights: { focus?: "updates" | "topup" } | undefined;
+};
+
+export type PassengerWalletStackParamList = {
+  WalletMain: undefined;
+  AddMoney: undefined;
+  Transfer: undefined;
+  Vouchers: undefined;
+  Rewards: undefined;
+  WalletHistory: undefined;
+  WalletStatement: undefined;
 };
 
 export type PassengerRootStackParamList = {
@@ -28,4 +45,7 @@ export type PassengerRootStackParamList = {
   QRTicket: undefined;
   RateTrip: undefined;
   LiveTracking: undefined;
+  CalendarPicker: undefined;
+  RouteOptions: undefined;
+  EmergencySOS: undefined;
 };

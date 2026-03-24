@@ -3,8 +3,9 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
+import { NavigationProp } from "@react-navigation/native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { PassengerHomeStackParamList } from "../types";
+import { PassengerHomeStackParamList, PassengerRootStackParamList } from "../types";
 import { colors } from "../theme";
 
 type Props = NativeStackScreenProps<PassengerHomeStackParamList, "RouteSearch">;
@@ -14,6 +15,13 @@ export default function RouteSearchScreen({ navigation }: Props) {
   const [to, setTo] = useState("Destination City");
   const [selectedDate, setSelectedDate] = useState("TODAY");
   const [selectedPref, setSelectedPref] = useState("AC");
+
+  const navigateRoot = (screen: "CalendarPicker" | "RouteOptions") => {
+    const root = navigation.getParent()?.getParent() as
+      | NavigationProp<PassengerRootStackParamList>
+      | undefined;
+    root?.navigate(screen);
+  };
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -25,7 +33,9 @@ export default function RouteSearchScreen({ navigation }: Props) {
                 <Ionicons name="chevron-back" size={20} color="#D6E7F7" />
               </Pressable>
               <Text style={styles.title}>Find a Bus</Text>
-              <Ionicons name="options-outline" size={18} color="#A4B9CE" />
+              <Pressable onPress={() => navigateRoot("RouteOptions")}>
+                <Ionicons name="options-outline" size={18} color="#A4B9CE" />
+              </Pressable>
             </View>
 
             <View style={styles.titleRow}>
@@ -38,8 +48,15 @@ export default function RouteSearchScreen({ navigation }: Props) {
 
             <View style={styles.inputStack}>
               <Input value={from} onChangeText={setFrom} icon="location-outline" />
-              <Input value={`To (${to})`} onChangeText={setTo} icon="location-outline" danger />
-              <Pressable style={styles.swapBtn}>
+              <Input value={to} onChangeText={setTo} icon="location-outline" danger />
+              <Pressable
+                style={styles.swapBtn}
+                onPress={() => {
+                  const currentFrom = from;
+                  setFrom(to);
+                  setTo(currentFrom);
+                }}
+              >
                 <Ionicons name="swap-vertical-outline" size={14} color="#5EA1E6" />
               </Pressable>
             </View>
@@ -49,7 +66,9 @@ export default function RouteSearchScreen({ navigation }: Props) {
                 <Ionicons name="calendar-outline" size={14} color="#A7BCD1" />
                 <Text style={styles.blockTitle}>Travel Date</Text>
               </View>
-              <Text style={styles.calendarText}>View Calendar</Text>
+              <Pressable onPress={() => navigateRoot("CalendarPicker")}>
+                <Text style={styles.calendarText}>View Calendar</Text>
+              </Pressable>
             </View>
 
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>

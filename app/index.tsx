@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from "react";
-import LoginScreen, { UserRole } from "../components/auth/LoginScreen";
+import LoginScreen from "../components/auth/LoginScreen";
 import RegisterScreen from "../components/auth/RegisterScreen";
 import Onboarding from "../components/Onboarding";
 import DriverHome from "../components/driver/DriverHome";
 import PassengerModule from "../components/passenger/PassengerModule";
 import SplashScreen from "../components/SplashScreen";
+import { login, register } from "../services/api/auth";
+import { clearSession } from "../services/api/session";
 
 export default function AppEntryPoint() {
   const [currentView, setCurrentView] = useState<
@@ -22,6 +24,7 @@ export default function AppEntryPoint() {
   }, [currentView, splashTarget]);
 
   const handleLogout = () => {
+    clearSession();
     // On logout: always restart from splash, then go directly to login.
     setSplashTarget("login");
     setCurrentView("splash");
@@ -36,9 +39,11 @@ export default function AppEntryPoint() {
   if (currentView === "login") {
     return (
       <LoginScreen
-        onLogin={(role: UserRole) =>
-          setCurrentView(role === "driver" ? "driver-main" : "passenger-main")
-        }
+        onLogin={async ({ role, email, password }) => {
+          const apiRole = role === "driver" ? "DRIVER" : "PASSENGER";
+          await login({ email, password });
+          setCurrentView(apiRole === "DRIVER" ? "driver-main" : "passenger-main");
+        }}
         onRegister={() => setCurrentView("register")}
       />
     );
@@ -49,9 +54,17 @@ export default function AppEntryPoint() {
       <RegisterScreen
         onBack={() => setCurrentView("login")}
         onSignIn={() => setCurrentView("login")}
-        onCreateAccount={(role: UserRole) =>
-          setCurrentView(role === "driver" ? "driver-main" : "passenger-main")
-        }
+        onCreateAccount={async ({ role, fullName, email, phone, password }) => {
+          const apiRole = role === "driver" ? "DRIVER" : "PASSENGER";
+          await register({
+            role: apiRole,
+            fullName,
+            email,
+            phone,
+            password,
+          });
+          setCurrentView(apiRole === "DRIVER" ? "driver-main" : "passenger-main");
+        }}
       />
     );
   }

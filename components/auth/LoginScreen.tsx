@@ -13,7 +13,7 @@ import { Ionicons } from "@expo/vector-icons";
 export type UserRole = "passenger" | "driver";
 
 type LoginScreenProps = {
-  onLogin?: (role: UserRole) => void;
+  onLogin?: (payload: { role: UserRole; email: string; password: string }) => Promise<void> | void;
   onRegister?: () => void;
   onForgotPassword?: () => void;
 };
@@ -27,6 +27,24 @@ export default function LoginScreen({
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  async function handleLogin() {
+    setError(null);
+    if (!email.trim() || !password.trim()) {
+      setError("Email and password are required.");
+      return;
+    }
+    try {
+      setSubmitting(true);
+      await onLogin?.({ role, email: email.trim().toLowerCase(), password });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Login failed");
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   return (
     <View style={styles.screen}>
@@ -118,8 +136,10 @@ export default function LoginScreen({
             <Text style={styles.inlineLink}>Forgot Password?</Text>
           </Pressable>
 
-          <Pressable style={styles.loginButton} onPress={() => onLogin?.(role)}>
-            <Text style={styles.loginText}>Log in</Text>
+          {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+          <Pressable style={styles.loginButton} onPress={handleLogin} disabled={submitting}>
+            <Text style={styles.loginText}>{submitting ? "Logging in..." : "Log in"}</Text>
           </Pressable>
 
           <View style={styles.footerRow}>
@@ -265,5 +285,12 @@ const styles = StyleSheet.create({
     color: "#1EA2FF",
     fontSize: 15,
     fontWeight: "700",
+  },
+  errorText: {
+    color: "#FF8E8E",
+    marginBottom: 12,
+    textAlign: "center",
+    fontSize: 13,
+    fontWeight: "600",
   },
 });

@@ -1,4 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
+import { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { useEffect, useState } from "react";
 import {
   Pressable,
   ScrollView,
@@ -7,6 +9,10 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { PassengerWalletStackParamList } from "../types";
+import { getWallet, getWalletHistory } from "../../../services/api/wallet";
+
+type Props = NativeStackScreenProps<PassengerWalletStackParamList, "WalletMain">;
 
 const BG = "#000000";
 const SURFACE = "#1C1C1E";
@@ -16,6 +22,15 @@ const TEXT = "#FFFFFF";
 const MUTED = "#8E8E93";
 const CARD_DARK = "#2C2C2E";
 const ORANGE = "#FF9F0A";
+
+type ActivityRow = {
+  id: string;
+  title: string;
+  time: string;
+  amount: string;
+  tone: "blue" | "green" | "orange";
+  icon: "bus" | "arrow-up" | "gift";
+};
 
 const REWARDS = [
   {
@@ -36,7 +51,7 @@ const REWARDS = [
   },
 ] as const;
 
-const ACTIVITY = [
+const ACTIVITY: ActivityRow[] = [
   {
     id: "a1",
     title: "Route 42 - Downtown",
@@ -77,18 +92,47 @@ const ACTIVITY = [
     tone: "green" as const,
     icon: "arrow-up" as const,
   },
-] as const;
+];
 
-export default function WalletScreen() {
+export default function WalletScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const tabBarPad = 72;
+  const [balance, setBalance] = useState(428.5);
+  const [activity, setActivity] = useState<ActivityRow[]>(ACTIVITY);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const wallet = await getWallet();
+        const history = await getWalletHistory();
+        if (!mounted) return;
+        setBalance(wallet.balance);
+        setActivity(
+          history.items.slice(0, 5).map((item, idx) => ({
+            id: item.id ?? `h-${idx}`,
+            title: item.reference ?? "Wallet transaction",
+            time: new Date(item.createdAt ?? Date.now()).toLocaleString(),
+            amount: Number(item.amount) >= 0 ? `+${Number(item.amount).toFixed(2)}` : `${Number(item.amount).toFixed(2)}`,
+            tone: Number(item.amount) >= 0 ? "green" : "blue",
+            icon: Number(item.amount) >= 0 ? "arrow-up" : "bus",
+          }))
+        );
+      } catch {
+        // keep existing mock display when backend is unavailable
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <View style={styles.screen}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>My Wallet</Text>
-          <Pressable hitSlop={12} style={styles.headerPlus}>
+          <Pressable hitSlop={12} style={styles.headerPlus} onPress={() => navigation.navigate("AddMoney")}>
             <Ionicons name="add" size={26} color={SKY} />
           </Pressable>
         </View>
@@ -105,7 +149,7 @@ export default function WalletScreen() {
             <View style={styles.balanceTop}>
               <View>
                 <Text style={styles.balanceLabel}>CURRENT BALANCE</Text>
-                <Text style={styles.balanceAmount}>$428.50</Text>
+                <Text style={styles.balanceAmount}>${balance.toFixed(2)}</Text>
               </View>
               <Ionicons name="wallet-outline" size={28} color="#0A1628" />
             </View>
@@ -125,15 +169,15 @@ export default function WalletScreen() {
           </View>
 
           <View style={styles.quickRow}>
-            <Pressable style={styles.quickAdd}>
+            <Pressable style={styles.quickAdd} onPress={() => navigation.navigate("AddMoney")}>
               <Ionicons name="add" size={22} color={SKY} />
               <Text style={styles.quickAddText}>Add Money</Text>
             </Pressable>
-            <Pressable style={styles.quickSolid}>
+            <Pressable style={styles.quickSolid} onPress={() => navigation.navigate("Transfer")}>
               <Ionicons name="arrow-up-right-box" size={22} color={TEXT} />
               <Text style={styles.quickSolidText}>Transfer</Text>
             </Pressable>
-            <Pressable style={styles.quickSolid}>
+            <Pressable style={styles.quickSolid} onPress={() => navigation.navigate("Vouchers")}>
               <Ionicons name="card-outline" size={22} color={TEXT} />
               <Text style={styles.quickSolidText}>Vouchers</Text>
             </Pressable>
@@ -144,7 +188,7 @@ export default function WalletScreen() {
               <Ionicons name="trending-up" size={18} color={SKY} />
               <Text style={styles.sectionTitle}>Earned Rewards</Text>
             </View>
-            <Pressable>
+            <Pressable onPress={() => navigation.navigate("Rewards")}>
               <Text style={styles.link}>View All</Text>
             </Pressable>
           </View>
@@ -173,13 +217,13 @@ export default function WalletScreen() {
               <Ionicons name="time-outline" size={18} color={SKY} />
               <Text style={styles.sectionTitle}>Recent Activity</Text>
             </View>
-            <Pressable>
+            <Pressable onPress={() => navigation.navigate("WalletHistory")}>
               <Text style={styles.link}>History</Text>
             </Pressable>
           </View>
 
           <View style={styles.activityCard}>
-            {ACTIVITY.map((row, i) => (
+            {activity.map((row, i) => (
               <View key={row.id}>
                 {i > 0 ? <View style={styles.activityDivider} /> : null}
                 <View style={styles.activityRow}>
@@ -212,7 +256,7 @@ export default function WalletScreen() {
                 </View>
               </View>
             ))}
-            <Pressable style={styles.statementLink}>
+            <Pressable style={styles.statementLink} onPress={() => navigation.navigate("WalletStatement")}>
               <Text style={styles.statementText}>View Full Statement</Text>
               <Ionicons name="chevron-forward" size={16} color={SKY} />
             </Pressable>

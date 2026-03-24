@@ -1,10 +1,12 @@
 import { Ionicons } from "@expo/vector-icons";
 import { CommonActions } from "@react-navigation/native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { PassengerHomeStackParamList } from "../types";
+import { confirmBooking, seatLock } from "../../../services/api/booking";
+import { getWallet } from "../../../services/api/wallet";
 
 const BG = "#0D0D0F";
 const CARD_BLUE = "#152238";
@@ -25,6 +27,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
     busId,
     routeName,
     price,
+    tripId,
     seatId,
     fromStop = "St. Johns Terminal",
     toStop = "Central Plaza",
@@ -52,9 +55,53 @@ export default function CheckoutScreen({ navigation, route }: Props) {
   }, [baseFare]);
 
   const [payment, setPayment] = useState<PaymentId>("visa");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [walletBalance, setWalletBalance] = useState(0);
+  const [walletLoaded, setWalletLoaded] = useState(false);
 
   const totalStr = `$${breakdown.total.toFixed(2)}`;
-  const walletBalance = 42.5;
+  useEffect(() => {
+    (async () => {
+      try {
+        const wallet = await getWallet();
+        setWalletBalance(wallet.balance);
+      } finally {
+        setWalletLoaded(true);
+      }
+    })();
+  }, []);
+
+  async function handleConfirmAndPay() {
+    if (!tripId) {
+      setError("Trip identifier is missing.");
+      return;
+    }
+    setError(null);
+    try {
+      setSubmitting(true);
+      const lock = await seatLock({
+        tripId,
+        seatId,
+        amount: breakdown.total,
+      });
+      await confirmBooking(lock.bookingId);
+      const tabNav = navigation.getParent();
+      navigation.dispatch(
+        CommonActions.reset({
+          index: 0,
+          routes: [{ name: "HomeMain" }],
+        })
+      );
+      setTimeout(() => {
+        tabNav?.navigate("Wallet" as never);
+      }, 0);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Payment failed");
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
@@ -121,7 +168,9 @@ export default function CheckoutScreen({ navigation, route }: Props) {
             </View>
             <View style={styles.walletCenter}>
               <Text style={styles.walletLabel}>TRANSITFLOW WALLET</Text>
-              <Text style={styles.walletBalance}>${walletBalance.toFixed(2)}</Text>
+              <Text style={styles.walletBalance}>
+                {walletLoaded ? `$${walletBalance.toFixed(2)}` : "Loading..."}
+              </Text>
             </View>
             <View style={styles.walletRight}>
               <View style={styles.activeBadge}>
@@ -171,21 +220,14 @@ export default function CheckoutScreen({ navigation, route }: Props) {
           </View>
           <Pressable
             style={styles.payBtn}
-            onPress={() => {
-              const tabNav = navigation.getParent();
-              navigation.dispatch(
-                CommonActions.reset({
-                  index: 0,
-                  routes: [{ name: "HomeMain" }],
-                })
-              );
-              setTimeout(() => {
-                tabNav?.navigate("Wallet" as never);
-              }, 0);
-            }}
+            onPress={handleConfirmAndPay}
+            disabled={submitting}
           >
-            <Text style={styles.payBtnText}>Confirm & Pay {totalStr}</Text>
+            <Text style={styles.payBtnText}>
+              {submitting ? "Processing..." : `Confirm & Pay ${totalStr}`}
+            </Text>
           </Pressable>
+          {error ? <Text style={styles.errorText}>{error}</Text> : null}
         </View>
       </View>
     </SafeAreaView>
@@ -415,4 +457,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   payBtnText: { color: "#0A1628", fontSize: 16, fontWeight: "800" },
+  errorText: {
+    color: "#FF9F9F",
+    marginTop: 10,
+    textAlign: "center",
+    fontSize: 12,
+    fontWeight: "600",
+  },
 });

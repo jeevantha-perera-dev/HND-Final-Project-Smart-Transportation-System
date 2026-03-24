@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -11,6 +11,7 @@ import FilterChip from "../FilterChip";
 import { CompositeScreenProps } from "@react-navigation/native";
 import { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { getMyBookings } from "../../../services/api/booking";
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<PassengerTabsParamList, "Trips">,
@@ -75,8 +76,24 @@ const completedTrips = [
   },
 ];
 
+type DynamicTrip = {
+  key: string;
+  route: string;
+  status: "Live Now" | "Upcoming";
+  from: string;
+  to: string;
+  date: string;
+  time: string;
+  seat: string;
+  bus: string;
+  slot: "morning" | "afternoon";
+  dayLabel: "Today" | "Tomorrow" | "Custom";
+};
+
 export default function TripsScreen({ navigation }: Props) {
   const [activeTab, setActiveTab] = useState<TripsTab>("Upcoming");
+  const [apiUpcomingTrips, setApiUpcomingTrips] = useState<DynamicTrip[]>([]);
+  const [apiCompletedTrips, setApiCompletedTrips] = useState<typeof completedTrips>([]);
   const defaultFilters: TripFilters = {
     date: "All",
     busStatus: "All",
@@ -86,6 +103,41 @@ export default function TripsScreen({ navigation }: Props) {
   const [modalVisible, setModalVisible] = useState(false);
   const [draftFilters, setDraftFilters] = useState<TripFilters>(defaultFilters);
   const [appliedFilters, setAppliedFilters] = useState<TripFilters>(defaultFilters);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await getMyBookings();
+        if (!mounted) return;
+        const mapped = res.items.map((item) => {
+          const createdAt = new Date(item.createdAt);
+          const routeCode = item.trip?.route?.code ?? "R-NA";
+          const routeName = item.trip?.route?.name ?? "Transit Route";
+          return {
+            key: item.id,
+            route: routeCode,
+            status: "Upcoming" as const,
+            from: "Central Terminal",
+            to: routeName,
+            date: createdAt.toLocaleDateString(),
+            time: createdAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+            seat: item.seatId ?? "Seat -",
+            bus: item.trip?.id ?? "BUS-NA",
+            slot: createdAt.getHours() < 12 ? ("morning" as const) : ("afternoon" as const),
+            dayLabel: "Custom" as const,
+          };
+        });
+        setApiUpcomingTrips(mapped);
+        setApiCompletedTrips([]);
+      } catch {
+        // fall back to static UI data
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const goToQr = () => {
     navigation.navigate("QRTicket");
@@ -129,11 +181,14 @@ export default function TripsScreen({ navigation }: Props) {
     return true;
   };
 
-  const filteredUpcomingTrips = upcomingTrips.filter((trip) =>
+  const sourceUpcomingTrips = apiUpcomingTrips.length > 0 ? apiUpcomingTrips : upcomingTrips;
+  const sourceCompletedTrips = apiCompletedTrips.length > 0 ? apiCompletedTrips : completedTrips;
+
+  const filteredUpcomingTrips = sourceUpcomingTrips.filter((trip) =>
     filterLogic({ ...trip, isCompleted: false }),
   );
 
-  const filteredCompletedTrips = completedTrips.filter((trip) =>
+  const filteredCompletedTrips = sourceCompletedTrips.filter((trip) =>
     filterLogic({ ...trip, isCompleted: true }),
   );
 
