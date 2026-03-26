@@ -11,8 +11,13 @@ async function main() {
     const email = input.email.toLowerCase();
     try {
       const existing = await firebaseAuthAdmin.getUserByEmail(email);
-      await firebaseAuthAdmin.setCustomUserClaims(existing.uid, { role: input.role });
-      await firebaseAuthAdmin.updateUser(existing.uid, { displayName: input.fullName, password: input.password });
+      await firebaseAuthAdmin.setCustomUserClaims(existing.uid, {
+        role: input.role,
+      });
+      await firebaseAuthAdmin.updateUser(existing.uid, {
+        displayName: input.fullName,
+        password: input.password,
+      });
       return existing.uid;
     } catch (error) {
       const code = (error as { code?: string }).code;
@@ -22,7 +27,9 @@ async function main() {
         password: input.password,
         displayName: input.fullName,
       });
-      await firebaseAuthAdmin.setCustomUserClaims(created.uid, { role: input.role });
+      await firebaseAuthAdmin.setCustomUserClaims(created.uid, {
+        role: input.role,
+      });
       return created.uid;
     }
   }
@@ -59,25 +66,36 @@ async function main() {
     updatedAt: now,
   });
 
-  await firestore.collection(collections.wallets).doc(passengerId).set({
-    id: passengerId,
-    userId: passengerId,
-    balance: 428.5,
-    rewards: [
-      { id: "reward-free-weekly-pass", title: "Free Weekly Pass", progress: 0.85 },
-      { id: "reward-cashback-booster", title: "Cashback Booster", progress: 0.4 },
-    ],
-    vouchers: [
-      {
-        id: "voucher-welcome20",
-        code: "WELCOME20",
-        value: 20,
-        expiresAt: new Date(Date.now() + 30 * 86400000).toISOString(),
-      },
-    ],
-    createdAt: now,
-    updatedAt: now,
-  });
+  await firestore
+    .collection(collections.wallets)
+    .doc(passengerId)
+    .set({
+      id: passengerId,
+      userId: passengerId,
+      balance: 428.5,
+      rewards: [
+        {
+          id: "reward-free-weekly-pass",
+          title: "Free Weekly Pass",
+          progress: 0.85,
+        },
+        {
+          id: "reward-cashback-booster",
+          title: "Cashback Booster",
+          progress: 0.4,
+        },
+      ],
+      vouchers: [
+        {
+          id: "voucher-welcome20",
+          code: "WELCOME20",
+          value: 20,
+          expiresAt: new Date(Date.now() + 30 * 86400000).toISOString(),
+        },
+      ],
+      createdAt: now,
+      updatedAt: now,
+    });
 
   await firestore.collection(collections.wallets).doc(driverId).set({
     id: driverId,
@@ -89,26 +107,29 @@ async function main() {
     updatedAt: now,
   });
 
-  await firestore.collection(collections.trips).doc("trip-demo-402").set({
-    id: "trip-demo-402",
-    routeId: "route-402",
-    routeCode: "R-402",
-    routeName: "Downtown Express",
-    isExpress: true,
-    vehicleId: "vehicle-402",
-    vehicleCode: "BUS-402",
-    driverId,
-    originStopCode: "STOP-CENTRAL",
-    destinationStopCode: "STOP-OLDTOWN",
-    originStopName: "Central Terminal",
-    destinationStopName: "Old Town Junction",
-    departureAt: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
-    arrivalAt: new Date(Date.now() + 40 * 60 * 1000).toISOString(),
-    baseFare: 2.5,
-    seatsAvailable: 32,
-    createdAt: now,
-    updatedAt: now,
-  });
+  await firestore
+    .collection(collections.trips)
+    .doc("trip-demo-402")
+    .set({
+      id: "trip-demo-402",
+      routeId: "route-402",
+      routeCode: "R-402",
+      routeName: "Downtown Express",
+      isExpress: true,
+      vehicleId: "vehicle-402",
+      vehicleCode: "BUS-402",
+      driverId,
+      originStopCode: "STOP-CENTRAL",
+      destinationStopCode: "STOP-OLDTOWN",
+      originStopName: "Central Terminal",
+      destinationStopName: "Old Town Junction",
+      departureAt: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+      arrivalAt: new Date(Date.now() + 40 * 60 * 1000).toISOString(),
+      baseFare: 2.5,
+      seatsAvailable: 32,
+      createdAt: now,
+      updatedAt: now,
+    });
 }
 
 main()

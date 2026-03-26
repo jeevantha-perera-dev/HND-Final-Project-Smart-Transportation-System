@@ -153,11 +153,46 @@ authRouter.get(
   "/profile",
   requireAuth,
   asyncHandler(async (req, res) => {
-    const snap = await firestore.collection(collections.users).doc(req.auth!.userId).get();
-    if (!snap.exists) throw new HttpError(404, "User not found");
-    const user = snap.data()!;
+    const userId = req.auth!.userId;
+    const docRef = firestore.collection(collections.users).doc(userId);
+    let snap = await docRef.get();
+    let user = snap.data();
+
+    // If the auth account exists but Firestore profile is missing (e.g. user created in Auth emulator UI),
+    // auto-provision the profile document so login/profile still works.
+    if (!snap.exists || !user) {
+      const authUser = await firebaseAuthAdmin.getUser(userId);
+      const role = typeof authUser.customClaims?.role === "string" ? authUser.customClaims.role : "PASSENGER";
+      const now = new Date().toISOString();
+
+      user = {
+        id: userId,
+        fullName: authUser.displayName ?? "",
+        email: authUser.email ?? "",
+        phone: authUser.phoneNumber ?? null,
+        role,
+        createdAt: now,
+        updatedAt: now,
+      };
+      await docRef.set(user, { merge: true });
+      await firestore.collection(collections.wallets).doc(userId).set(
+        {
+          id: userId,
+          userId,
+          balance: 0,
+          rewards: [],
+          vouchers: [],
+          createdAt: now,
+          updatedAt: now,
+        },
+        { merge: true }
+      );
+      snap = await docRef.get();
+      user = snap.data() ?? user;
+    }
+
     res.json({
-      id: String(user.id ?? req.auth!.userId),
+      id: String(user.id ?? userId),
       fullName: String(user.fullName ?? ""),
       email: String(user.email ?? ""),
       phone: typeof user.phone === "string" ? user.phone : undefined,
