@@ -34,4 +34,12 @@ if (AUTH_EMULATOR_URL && !authGlobal.__authEmulatorConnected) {
   authGlobal.__authEmulatorConnected = true;
 }
 
+if (__DEV__) {
+  console.log("🔥 Firebase project:", firebaseConfig.projectId);
+  console.log("🔥 Auth domain:", firebaseConfig.authDomain);
+  if (AUTH_EMULATOR_URL) {
+    console.log("🔥 Using Firebase Auth Emulator at", AUTH_EMULATOR_URL);
+  }
+}
+
 export { app, auth };

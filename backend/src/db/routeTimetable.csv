@@ -1,0 +1,14 @@
+Route Name,Route Number,Departure Time,Arrival Time,Distance (km),Bus Operator,Origin,Destination
+Colombo - Elpitiya,EX 1-16,4:15:00,6:10:00,95,SLTB (Elpitiya),Colombo,Elpitiya
+Galle - Kandy/Negombo,EX-01/27/01,6:15:00,7:45:00,,,Galle,Kandy/Negombo
+GALLE - KADUWELA,EX01-23,5:30:00,7:10:00,117,,Galle,Kaduwela
+Colombo - Ambalangoda,EX 1-41,4:00:00,6:05:00,104,,Colombo,Ambalangoda
+Galle - Makumbura,EX-01,5:30:00,7:00:00,107.3,,Galle,Makumbura
+Galle - Kadawatha,EX 1-21,4:30:00,6:00:00,126,PVT-G- 01,Galle,Kadawatha
+Moratuwa University - Matara,EX 1-46,6:00:00,8:30:00,137,PVT - 01,Moratuwa,Matara
+Panadura - Matara,EX 1-25/450,5:30:00,7:20:00,129.8,PVT,Panadura,Matara
+Matara - Kadawatha,EX-1-2,5:00:00,6:50:00,140,ETC,Matara,Kadawatha
+MATARA - KADAWATHA,EX1-22,4:00:00,6:05:00,154,,Matara,Kadawatha
+Matara - Makumbura,EX-01-001,4:15:00,6:00:00,133.5,,Matara,Makumbura
+Matara - Colombo (via Expressway),EX 1-18,3:45:00,6:30:00,152.4,,Matara,Colombo
+Tangalle - Makumbura,EX 1-39,5:30:00,8:00:00,164,SLTB,Tangalle,Makumbura

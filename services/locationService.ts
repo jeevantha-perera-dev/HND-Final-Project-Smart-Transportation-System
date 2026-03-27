@@ -1,4 +1,13 @@
+import { apiRequest } from "./api/client";
+import { fetchTransitEstimate } from "./api/transitEstimate";
 import { BusResult, BusStop, CrowdLevel, Journey, Place } from "../types/bus";
+import {
+  calculateFare,
+  estimateBusTripMinutes,
+  estimateNearTermArrivalMinutes,
+  haversineDistanceKm,
+  roundDistanceKm,
+} from "./transitCalculations";
 
 const NOMINATIM_BASE = "https://nominatim.openstreetmap.org/search";
 const OVERPASS_URL = "https://overpass-api.de/api/interpreter";
@@ -36,11 +45,6 @@ async function withRetry<T>(label: string, task: () => Promise<T>): Promise<T> {
   }
 }
 
-function estimateFallbackDurationMinutes(distanceKm: number) {
-  if (!Number.isFinite(distanceKm) || distanceKm <= 0) return 0;
-  return (distanceKm / 40) * 60;
-}
-
 function parseRouteRefs(value: string | undefined) {
   if (!value) return [];
   return value
@@ -58,8 +62,123 @@ function computeCrowdLevel(seatsAvailable: number): CrowdLevel {
 function randomSeats(seed: string) {
   let hash = 0;
   for (let i = 0; i < seed.length; i += 1) hash = (hash * 31 + seed.charCodeAt(i)) | 0;
-  const normalized = Math.abs(hash % 41); // 0..40
-  return normalized + 5; // 5..45
+  const normalized = Math.abs(hash % 41);
+  return normalized + 5;
+}
+
+/** True when lat/lon are usable (non-zero and finite). */
+export function placeHasCoordinates(place: Pick<Place, "lat" | "lon">): boolean {
+  return (
+    Number.isFinite(place.lat) &&
+    Number.isFinite(place.lon) &&
+    (Math.abs(place.lat) > 1e-5 || Math.abs(place.lon) > 1e-5)
+  );
+}
+
+/**
+ * If the user typed an address without picking a suggestion, geocode via backend (Nominatim)
+ * or client searchPlaces so distance/fare are not computed from (0,0).
+ */
+export async function resolvePlaceCoordinates(place: Place): Promise<Place> {
+  if (placeHasCoordinates(place)) return place;
+
+  const label = `${place.displayName?.trim() || place.name?.trim() || "Sri Lanka"}`;
+  const address = label.includes("Sri Lanka") || label.includes("LK") ? label : `${label}, Sri Lanka`;
+
+  try {
+    const data = await apiRequest<{
+      results?: Array<{ geometry?: { location?: { lat?: number; lng?: number } } }>;
+    }>("/places/geocode", {
+      method: "POST",
+      body: { address },
+    });
+    const loc = data.results?.[0]?.geometry?.location;
+    const lat = Number(loc?.lat);
+    const lng = Number(loc?.lng);
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      return { ...place, lat, lon: lng };
+    }
+  } catch {
+    console.warn("[geocode] /places/geocode failed; trying Nominatim search");
+  }
+
+  try {
+    const q = place.name?.trim() || place.displayName?.trim() || "Colombo";
+    const results = await searchPlaces(q);
+    const first = results[0];
+    if (first && placeHasCoordinates(first)) {
+      return { ...place, lat: first.lat, lon: first.lon, id: place.id || first.id, displayName: place.displayName || first.displayName };
+    }
+  } catch {
+    console.warn("[geocode] Nominatim search fallback failed");
+  }
+
+  console.warn("[geocode] Using coarse fallback coordinates for:", label);
+  let h = 0;
+  for (let i = 0; i < label.length; i += 1) h = (h * 31 + label.charCodeAt(i)) | 0;
+  const u = (Math.abs(h) % 1000) / 1000;
+  return {
+    ...place,
+    lat: 6.9271 + u * 0.08,
+    lon: 79.8612 + u * 0.08,
+  };
+}
+
+type TripMetrics = { distanceKm: number; estimatedMinutes: number; fareLKR: number };
+
+async function resolveTripMetrics(from: Place, to: Place, seed: string): Promise<TripMetrics> {
+  try {
+    const res = await fetchTransitEstimate({
+      fromLat: from.lat,
+      fromLon: from.lon,
+      toLat: to.lat,
+      toLon: to.lon,
+      seed,
+    });
+    const distanceKm = roundDistanceKm(Number(res.distanceKm));
+    const estimatedMinutes = Math.max(1, Math.round(Number(res.estimatedMinutes)));
+    const fareLKR = Math.max(30, Math.round(Number(res.fareLKR)));
+    if (!Number.isFinite(distanceKm)) {
+      throw new Error("invalid estimate");
+    }
+    return { distanceKm, estimatedMinutes, fareLKR };
+  } catch (err) {
+    console.warn("[transit] estimate API failed, using OSRM + local fare/ETA", err);
+    let straightKm = haversineDistanceKm(from.lat, from.lon, to.lat, to.lon);
+    let distanceKm = roundDistanceKm(straightKm);
+    try {
+      const j = await getJourney(from.lat, from.lon, to.lat, to.lon);
+      if (j && Number.isFinite(j.distanceKm) && j.distanceKm > 0) {
+        distanceKm = roundDistanceKm(j.distanceKm);
+      }
+    } catch {
+      /* use haversine */
+    }
+    if (!Number.isFinite(distanceKm) || distanceKm <= 0) {
+      distanceKm = 0.1;
+    }
+    return {
+      distanceKm,
+      estimatedMinutes: estimateBusTripMinutes(distanceKm, { seed }),
+      fareLKR: calculateFare(distanceKm),
+    };
+  }
+}
+
+function buildBusResultBase(
+  metrics: TripMetrics,
+  extra: Omit<BusResult, "durationMinutes" | "distanceKm" | "price" | "fareLKR" | "departureLabel" | "boardEtaMinutes">
+): BusResult {
+  const boardEtaMinutes = estimateNearTermArrivalMinutes(metrics.estimatedMinutes, extra.id);
+  return {
+    ...extra,
+    durationMinutes: metrics.estimatedMinutes,
+    distanceKm: metrics.distanceKm,
+    price: metrics.fareLKR,
+    fareLKR: metrics.fareLKR,
+    boardEtaMinutes,
+    departureLabel: `Arriving in ~${boardEtaMinutes} min`,
+  };
 }
 
 export async function searchPlaces(query: string): Promise<Place[]> {
@@ -189,7 +308,7 @@ export async function getJourney(fromLat: number, fromLon: number, toLat: number
       const fallbackDistanceKm = distanceMeters(fromLat, fromLon, toLat, toLon) / 1000;
       return {
         distanceKm: fallbackDistanceKm,
-        durationMinutes: estimateFallbackDurationMinutes(fallbackDistanceKm),
+        durationMinutes: estimateBusTripMinutes(roundDistanceKm(fallbackDistanceKm), { seed: "osrm-fallback" }),
         geometry: "",
       };
     }
@@ -197,19 +316,15 @@ export async function getJourney(fromLat: number, fromLon: number, toLat: number
 }
 
 export async function searchBusRoutes(fromPlace: Place, toPlace: Place): Promise<BusResult[]> {
-  const [originStops, destinationStops, journey] = await Promise.all([
-    getBusStopsNear(fromPlace.lat, fromPlace.lon, 600),
-    getBusStopsNear(toPlace.lat, toPlace.lon, 600),
-    getJourney(fromPlace.lat, fromPlace.lon, toPlace.lat, toPlace.lon),
-  ]);
+  const [fromR, toR] = await Promise.all([resolvePlaceCoordinates(fromPlace), resolvePlaceCoordinates(toPlace)]);
+  const seed = `${fromR.id}|${toR.id}`;
 
-  const safeJourney: Journey = journey ?? {
-    distanceKm: distanceMeters(fromPlace.lat, fromPlace.lon, toPlace.lat, toPlace.lon) / 1000,
-    durationMinutes: estimateFallbackDurationMinutes(
-      distanceMeters(fromPlace.lat, fromPlace.lon, toPlace.lat, toPlace.lon) / 1000
-    ),
-    geometry: "",
-  };
+  const metrics = await resolveTripMetrics(fromR, toR, seed);
+
+  const [originStops, destinationStops] = await Promise.all([
+    getBusStopsNear(fromR.lat, fromR.lon, 600),
+    getBusStopsNear(toR.lat, toR.lon, 600),
+  ]);
 
   const routeMatches: BusResult[] = [];
   for (const fromStop of originStops) {
@@ -218,22 +333,20 @@ export async function searchBusRoutes(fromPlace: Place, toPlace: Place): Promise
       for (const routeNumber of common) {
         const id = `${routeNumber}-${fromStop.id}-${toStop.id}`;
         const seatsAvailable = randomSeats(id);
-        const isExpress = /e/i.test(routeNumber) || safeJourney.distanceKm > 20;
-        routeMatches.push({
-          id,
-          routeNumber,
-          routeName: `${fromStop.name} → ${toStop.name}`,
-          originStop: fromStop,
-          destinationStop: toStop,
-          durationMinutes: Math.max(1, Math.round(safeJourney.durationMinutes)),
-          distanceKm: Number(safeJourney.distanceKm.toFixed(1)),
-          price: Number((safeJourney.distanceKm * 2.5).toFixed(0)),
-          seatsAvailable,
-          crowdLevel: computeCrowdLevel(seatsAvailable),
-          departureLabel: `Arriving in ~${Math.max(1, Math.round(safeJourney.durationMinutes / 4))}m`,
-          isExpress,
-          type: isExpress ? "Express" : "Recommended",
-        });
+        const isExpress = /e/i.test(routeNumber) || metrics.distanceKm > 20;
+        routeMatches.push(
+          buildBusResultBase(metrics, {
+            id,
+            routeNumber,
+            routeName: `${fromStop.name} → ${toStop.name}`,
+            originStop: fromStop,
+            destinationStop: toStop,
+            seatsAvailable,
+            crowdLevel: computeCrowdLevel(seatsAvailable),
+            isExpress,
+            type: isExpress ? "Express" : "Recommended",
+          })
+        );
       }
     }
   }
@@ -246,36 +359,32 @@ export async function searchBusRoutes(fromPlace: Place, toPlace: Place): Promise
 
   const fallbackOrigin: BusStop = originStops[0] ?? {
     id: "origin-fallback",
-    name: fromPlace.name,
-    lat: fromPlace.lat,
-    lon: fromPlace.lon,
+    name: fromR.name,
+    lat: fromR.lat,
+    lon: fromR.lon,
     routes: [],
   };
   const fallbackDestination: BusStop = destinationStops[0] ?? {
     id: "destination-fallback",
-    name: toPlace.name,
-    lat: toPlace.lat,
-    lon: toPlace.lon,
+    name: toR.name,
+    lat: toR.lat,
+    lon: toR.lon,
     routes: [],
   };
 
-  const fallbackId = `fallback-${fromPlace.id}-${toPlace.id}`;
+  const fallbackId = `fallback-${fromR.id}-${toR.id}`;
   const seatsAvailable = randomSeats(fallbackId);
   return [
-    {
+    buildBusResultBase(metrics, {
       id: fallbackId,
       routeNumber: "N/A",
-      routeName: `${fromPlace.name} → ${toPlace.name}`,
+      routeName: `${fromR.name} → ${toR.name}`,
       originStop: fallbackOrigin,
       destinationStop: fallbackDestination,
-      durationMinutes: Math.max(1, Math.round(safeJourney.durationMinutes)),
-      distanceKm: Number(safeJourney.distanceKm.toFixed(1)),
-      price: Number((safeJourney.distanceKm * 2.5).toFixed(0)),
       seatsAvailable,
       crowdLevel: computeCrowdLevel(seatsAvailable),
-      departureLabel: `Arriving in ~${Math.max(1, Math.round(safeJourney.durationMinutes / 4))}m`,
-      isExpress: safeJourney.distanceKm > 20,
+      isExpress: metrics.distanceKm > 20,
       type: "Recommended",
-    },
+    }),
   ];
 }

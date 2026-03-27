@@ -215,7 +215,7 @@ function BusCard({ bus, onSelect }: { bus: BusResult; onSelect: () => void }) {
         <View style={styles.arrivalCol}>
           <View style={styles.arrivalRow}>
             <Ionicons name="time-outline" size={15} color={BUS_ID_BLUE} />
-            <Text style={styles.arrivalMins}>{Math.max(1, Math.round(bus.durationMinutes))}m</Text>
+            <Text style={styles.arrivalMins}>{Math.max(1, Math.round(bus.boardEtaMinutes))} min</Text>
             <Text style={styles.arrivingInline}> ARRIVING</Text>
           </View>
         </View>
@@ -237,7 +237,7 @@ function BusCard({ bus, onSelect }: { bus: BusResult; onSelect: () => void }) {
       <View style={styles.predictionRow}>
         <Ionicons name="trending-up-outline" size={16} color={TEXT_MUTED} />
         <Text style={styles.predictionText}>
-          {`~${Math.max(1, Math.round(bus.durationMinutes))}m journey • ${bus.distanceKm.toFixed(1)} km • `}
+          {`~${Math.max(1, Math.round(bus.durationMinutes))} min journey • ${bus.distanceKm.toFixed(1)} km • `}
           <Text style={styles.predictionHighlight}>
             {bus.departureLabel}
           </Text>
@@ -250,7 +250,7 @@ function BusCard({ bus, onSelect }: { bus: BusResult; onSelect: () => void }) {
       <View style={styles.cardBottom}>
         <View>
           <Text style={styles.priceLabel}>SINGLE TRIP</Text>
-          <Text style={styles.priceValue}>{`LKR ${bus.price.toFixed(0)}`}</Text>
+          <Text style={styles.priceValue}>{`LKR ${bus.fareLKR.toFixed(0)}`}</Text>
         </View>
         <Pressable style={styles.selectBtn} onPress={onSelect}>
           <Text style={styles.selectBtnText}>Select</Text>

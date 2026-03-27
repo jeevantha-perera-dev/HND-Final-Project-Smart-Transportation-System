@@ -8,9 +8,14 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
     "kill-port": "powershell -NoProfile -Command \"Stop-Process -Id (Get-NetTCPConnection -LocalPort 4000 -State Listen).OwningProcess -Force\"",
+    "inspect": "tsx src/db/inspectCsv.ts",
     "firebase:emulators": "firebase emulators:start --config ../firebase.json --only \"auth,firestore\"",
     "firebase:deploy:functions": "firebase deploy --only functions",
-    "seed": "tsx src/seed.ts",
+    "seed:users": "tsx src/seed.ts",
+    "seed": "tsx src/db/seedRoutes.ts",
+    "seed:dry": "tsx src/db/seedRoutes.ts --dry-run",
+    "seed:fresh": "tsx src/db/seedRoutes.ts --clear",
+    "seed:fresh:dry": "tsx src/db/seedRoutes.ts --clear --dry-run",
     "test": "node -e \"console.log('No tests configured yet')\""
   },
   "keywords": [],
@@ -20,6 +25,7 @@
   "dependencies": {
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",
+    "csv-parser": "^3.2.0",
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
     "firebase-admin": "^13.4.0",

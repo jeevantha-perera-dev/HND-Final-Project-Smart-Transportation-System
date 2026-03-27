@@ -30,9 +30,14 @@ export type BusResult = {
   routeName: string;
   originStop: BusStop;
   destinationStop: BusStop;
+  /** Full-trip estimate at ~30 km/h (with traffic + jitter from backend when available). */
   durationMinutes: number;
   distanceKm: number;
+  /** Single-trip fare (LKR), same as fareLKR for display. */
   price: number;
+  fareLKR: number;
+  /** Shorter “bus reaching you soon” headline (minutes). */
+  boardEtaMinutes: number;
   seatsAvailable: number;
   crowdLevel: CrowdLevel;
   departureLabel: string;

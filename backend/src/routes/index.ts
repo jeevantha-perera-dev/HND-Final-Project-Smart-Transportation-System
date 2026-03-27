@@ -5,6 +5,7 @@ import { placesRouter } from "./places";
 import { routingRouter } from "./routing";
 import { sosRouter } from "./sos";
 import { trackingRouter } from "./tracking";
+import { transitRouter } from "./transit";
 import { tripsRouter } from "./trips";
 import { walletRouter } from "./wallet";
 
@@ -20,6 +21,7 @@ apiRouter.get("/health", (_req, res) => {
 apiRouter.use("/auth", authRouter);
 apiRouter.use("/places", placesRouter);
 apiRouter.use("/routing", routingRouter);
+apiRouter.use("/transit", transitRouter);
 apiRouter.use("/trips", tripsRouter);
 apiRouter.use("/bookings", bookingRouter);
 apiRouter.use("/wallet", walletRouter);

@@ -1,0 +1,109 @@
+Route Number,Origin,Destination,Toll Fee / Fare (Rs.),Revised Date
+EX02/EX04/602,Makumbura,Kandy,980,03/24/2026
+EX02/EX04/602-1,Makumbura,Matale,1090,03/24/2026
+EX03/EX04,Colombo,Kurunegala,770,03/24/2026
+EX03/EX04/602,Colombo,Kandy,1000,03/24/2026
+EX 1-12/32,Colombo,Kataragama,1700,03/24/2026
+EX 1-16,Colombo,Elpitiya,630,03/24/2026
+EX 1-41,Colombo,Ambalangoda,670,03/24/2026
+EX 1-48,Kadawatha,Ambalangoda,660,03/24/2026
+EX 1-52/35-2,Colombo,Monaragala,1940,03/24/2026
+EX 1-60,Colombo,Akkaraipattu,2570,03/24/2026
+EX 1-62/35,Colombo,Ampara,2490,03/24/2026
+EX 1-74/31-2,Makumbura,Badulla,1970,03/24/2026
+EX01,Makumbura,Galle,870,03/24/2026
+EX01-001,Makumbura,Matara,1080,03/24/2026
+EX 1-2,Kaduwela,Matara,1170,03/24/2026
+EX01/EX03,Matara,Katunayake,1395,03/24/2026
+EX01/EX03,Matara,Negombo,1460,03/24/2026
+EX01/EX03/EX04,Galle,Kurunegala,1410,03/24/2026
+EX01/EX03/EX04,Galle,Kurunegala,1740,03/24/2026
+EX01/EX04,Kurunegala,Galle,1590,03/24/2026
+EX01/EX04/49,Matara,Trincomalee,3150,03/24/2026
+EX 1-5/26,Colombo,Matara,1230,03/24/2026
+EX 1-5/26,Colombo,Tihagoda,1285,03/24/2026
+EX 1-5/26,Colombo,Hakmana,1400,03/24/2026
+EX 1-7/26,Colombo,Matara,1230,03/24/2026
+EX 1-7/26,Colombo,Hakmana,1400,03/24/2026
+EX 1-7/26,Colombo,Walasmulla,1500,03/24/2026
+EX 1-7/26,Colombo,Middeniya,1690,03/24/2026
+EX 1-9/211,Colombo,Embilipitiya,1680,03/24/2026
+EX 1-10/60,Colombo,Imaduwa,1070,03/24/2026
+EX 1-10/60,Colombo,Akuressa,1170,03/24/2026
+EX 1-11/32,Colombo,Beliatta,1385,03/24/2026
+EX 1-11/32,Colombo,Tangalle,1455,03/24/2026
+EX 1-11/32,Colombo,Weeraketiya,1550,03/24/2026
+EX 1-12/32,Colombo,Ranna,1520,03/24/2026
+EX 1-12/32,Colombo,Ambalantota,1635,03/24/2026
+EX 1-12/32,Colombo,Hambantota,1765,03/24/2026
+EX 1-12/32,Colombo,Tissamaharama,1970,03/24/2026
+EX 1-12/32,Colombo,Kataragama,2110,03/24/2026
+EX 1-13/353,Colombo,Matara,1230,03/24/2026
+EX 1-13/353,Colombo,Tihagoda,1285,03/24/2026
+EX 1-13/353,Colombo,Kamburupitiya,1370,03/24/2026
+EX 1-13/353,Colombo,Makandura,1420,03/24/2026
+EX 1-13/353,Colombo,Deiyandara,1490,03/24/2026
+EX 1-14/60,Colombo,Imaduwa,1070,03/24/2026
+EX 1-14/60,Colombo,Akuressa,1175,03/24/2026
+EX 1-14/60,Colombo,Pitabeddara,1285,03/24/2026
+EX 1-14/60,Colombo,Morawaka,1375,03/24/2026
+EX 1-14/60,Colombo,Deniyaya,1520,03/24/2026
+EX 1-16,Colombo,Elpitiya,780,03/24/2026
+EX 1-18,Colombo,Matara,1210,03/24/2026
+EX 1-21,Kadawatha,Galle,990,03/24/2026
+EX 1-22,Kadawatha,Matara,1210,03/24/2026
+EX 1-23,Kaduwela,Galle,960,03/24/2026
+EX 1-24/01,Matara,Miriswatta,1295,03/24/2026
+EX 1-24/01,Matara,Nittambuwa,1375,03/24/2026
+EX 1-24/01,Matara,Warakapola,1490,03/24/2026
+EX 1-24/01,Matara,Kegalle,1660,03/24/2026
+EX 1-24/01,Matara,Mawanella,1755,03/24/2026
+EX 1-24/01,Matara,Kandy,1930,03/24/2026
+EX 1-25/450,Panadura,Matara,1050,03/24/2026
+EX01-26/119,Dehiwala,Matara,1160,03/24/2026
+EX 1-27/01,Galle,Galle,0,03/24/2026
+EX 1-27/01,Galle,Miriswatta,1040,03/24/2026
+EX 1-27/01,Galle,Nittambuwa,1120,03/24/2026
+EX 1-27/01,Galle,Warakapola,1230,03/24/2026
+EX 1-27/01,Galle,Kegalle,1400,03/24/2026
+EX 1-27/01,Galle,Mawanella,1500,03/24/2026
+EX 1-27/01,Galle,Kandy,1680,03/24/2026
+EX 1-29/353,Colombo,Matara,1230,03/24/2026
+EX 1-29/353,Colombo,Tihagoda,1285,03/24/2026
+EX 1-29/353,Colombo,Kamburupitiya,1370,03/24/2026
+EX 1-33/270,Galle,Katunayake,1205,03/24/2026
+EX 1-33/270,Galle,Negombo,1270,03/24/2026
+EX 1-37/174,Battaramulla,Galle,960,03/24/2026
+EX 1-39,Makumbura,Tangalle,1290,03/24/2026
+EX 1-41,Colombo,Ambalangoda,840,03/24/2026
+EX 1-42,Colombo,Baddegama,850,03/24/2026
+EX 1-46,Moratuwa Univ.,Matara,1120,03/24/2026
+EX 1-48,Kadawatha,Ambalangoda,810,03/24/2026
+EX 1-51/35,Colombo,Makumbura,255,03/24/2026
+EX 1-51/35,Colombo,Mattala,1735,03/24/2026
+EX 1-51/35,Colombo,Monaragala,2405,03/24/2026
+EX 1-51/35,Colombo,Siyambalanduwa,2665,03/24/2026
+EX 1-51/35,Colombo,Ampara,3090,03/24/2026
+EX 1-52/35-2,Colombo,Monaragala,2400,03/24/2026
+EX 1-72,Colombo,Angunacolapelessa,1570,03/24/2026
+EX 1-73/35-2,Makumbura,Monaragala,2250,03/24/2026
+EX 1-74/31-2,Makumbura,Badulla,2440,03/24/2026
+EX 1-75/211,Makumbura,Embilipitiya,1520,03/24/2026
+EX 1-77/35,Makumbura,Ampara,2940,03/24/2026
+EX 1-78/35/881,Makumbura,Akkaraipattu,2990,03/24/2026
+EX 1-81/29,Makumbura,Madolsima,2590,03/24/2026
+EX 1-84/366,Colombo,Weligama,1165,03/24/2026
+EX 1-84/366,Colombo,Thelijjawila,1255,03/24/2026
+EX 1-84/366,Colombo,Akuressa,1320,03/24/2026
+EX 1-85/360,Colombo,Thelijjawila,1255,03/24/2026
+EX 1-85/360,Colombo,Akuressa,1320,03/24/2026
+EX01-88/574,Colombo,Angunacolapelessa,1640,03/24/2026
+EX01-90/493,Colombo,Angunacolapelessa,1580,03/24/2026
+EX01-92,Makumbura,Hambantota,1660,03/24/2026
+EX01-94/EX03/EX04,Matara,Kurunegala,1980,03/24/2026
+EX01-95/31/314,Makumbura,Meegahakiula,2650,03/24/2026
+EX01-96/211,Colombo,Kolonna,1940,03/24/2026
+EX01-97/211,Colombo,Udawalawe,1780,03/24/2026
+EX01-103,Makumbura,Ambalangoda,560,03/24/2026
+EX02/EX04/602,Makumbura,Kandy,1120,03/24/2026
+EX02/EX04/602-1,Makumbura,Matale,1250,03/24/2026
