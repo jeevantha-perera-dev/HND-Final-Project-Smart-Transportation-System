@@ -52,7 +52,13 @@ Use this for the Firebase-first backend (Auth + Firestore + Functions-compatible
    EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
    EXPO_PUBLIC_FIREBASE_PROJECT_ID=your-project-id
    EXPO_PUBLIC_FIREBASE_APP_ID=your-firebase-app-id
+   EXPO_PUBLIC_GOOGLE_PLACES_API_KEY=your-google-places-key
+   GOOGLE_PLACES_API_KEY=your-google-places-key
    ```
+
+   Notes:
+   - `EXPO_PUBLIC_GOOGLE_PLACES_API_KEY` enables live Google Places autocomplete in the "Find a Bus" search input.
+   - If the key is missing, the app silently falls back to an internal Sri Lanka location dataset for suggestions.
 
 4. Run local backend + seed Firestore demo data
 

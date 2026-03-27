@@ -11,7 +11,14 @@ export type PassengerTabsParamList = {
 export type PassengerHomeStackParamList = {
   HomeMain: undefined;
   RouteSearch: { selectedDate?: string } | undefined;
-  AvailableBuses: { from?: string; to?: string } | undefined;
+  AvailableBuses:
+    | {
+        from?: string;
+        to?: string;
+        originCoordinates?: { latitude?: number; longitude?: number };
+        destinationCoordinates?: { latitude?: number; longitude?: number };
+      }
+    | undefined;
   SeatSelection: { tripId?: string; busId: string; routeName: string; price: string };
   Checkout: {
     tripId?: string;

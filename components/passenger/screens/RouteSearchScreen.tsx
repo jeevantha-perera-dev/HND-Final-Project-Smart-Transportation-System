@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { FlatList, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
@@ -9,6 +9,8 @@ import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { PassengerHomeStackParamList, PassengerRootStackParamList } from "../types";
 import { colors } from "../theme";
 import { reverseGeocode } from "../../../services/api/places";
+import LocationAutocomplete from "../../shared/LocationAutocomplete";
+import type { LocationSuggestion } from "../../../services/location/useLocationSuggestions";
 
 type Props = NativeStackScreenProps<PassengerHomeStackParamList, "RouteSearch">;
 
@@ -35,6 +37,8 @@ export default function RouteSearchScreen({ navigation, route }: Props) {
   const defaultFrom = "Central Terminal, Downtown";
   const [from, setFrom] = useState(defaultFrom);
   const [to, setTo] = useState("");
+  const [selectedOrigin, setSelectedOrigin] = useState<LocationSuggestion | null>(null);
+  const [selectedDestination, setSelectedDestination] = useState<LocationSuggestion | null>(null);
   const [selectedDate, setSelectedDate] = useState(() => {
     const today = new Date();
     return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(
@@ -221,29 +225,40 @@ export default function RouteSearchScreen({ navigation, route }: Props) {
             </View>
 
             <View style={styles.inputStack}>
-              <Input
+              <LocationAutocomplete
                 value={from}
-                onChangeText={(value) => {
+                onChange={(value) => {
                   hasEditedFromRef.current = true;
                   setFrom(value);
+                  setSelectedOrigin(null);
                 }}
-                icon="location-outline"
+                onSelect={(place) => {
+                  setSelectedOrigin(place);
+                  hasEditedFromRef.current = true;
+                }}
+                iconType="origin"
               />
               {locatingOrigin ? <Text style={styles.locationNote}>Detecting your current location...</Text> : null}
               {!locatingOrigin && locationNote ? <Text style={styles.locationNote}>{locationNote}</Text> : null}
-              <Input
+              <LocationAutocomplete
                 value={to}
-                onChangeText={setTo}
-                icon="location-outline"
-                danger
+                onChange={(value) => {
+                  setTo(value);
+                  setSelectedDestination(null);
+                }}
+                onSelect={(place) => setSelectedDestination(place)}
                 placeholder="Enter destination"
+                iconType="destination"
               />
               <Pressable
                 style={styles.swapBtn}
                 onPress={() => {
                   const currentFrom = from;
+                  const currentOrigin = selectedOrigin;
                   setFrom(to);
+                  setSelectedOrigin(selectedDestination);
                   setTo(currentFrom);
+                  setSelectedDestination(currentOrigin);
                 }}
               >
                 <Ionicons name="swap-vertical-outline" size={14} color="#5EA1E6" />
@@ -324,6 +339,17 @@ export default function RouteSearchScreen({ navigation, route }: Props) {
                 navigation.navigate("AvailableBuses", {
                   from,
                   to,
+                  ...(selectedOrigin
+                    ? { originCoordinates: { latitude: selectedOrigin.latitude, longitude: selectedOrigin.longitude } }
+                    : {}),
+                  ...(selectedDestination
+                    ? {
+                        destinationCoordinates: {
+                          latitude: selectedDestination.latitude,
+                          longitude: selectedDestination.longitude,
+                        },
+                      }
+                    : {}),
                 })
               }
             >
@@ -336,33 +362,6 @@ export default function RouteSearchScreen({ navigation, route }: Props) {
         </View>
       </LinearGradient>
     </SafeAreaView>
-  );
-}
-
-function Input({
-  value,
-  onChangeText,
-  icon,
-  danger,
-  placeholder,
-}: {
-  value: string;
-  onChangeText: (text: string) => void;
-  icon: keyof typeof Ionicons.glyphMap;
-  danger?: boolean;
-  placeholder?: string;
-}) {
-  return (
-    <View style={styles.inputWrap}>
-      <Ionicons name={icon} size={16} color={danger ? "#D46363" : "#4877AA"} />
-      <TextInput
-        value={value}
-        onChangeText={onChangeText}
-        style={styles.input}
-        placeholder={placeholder}
-        placeholderTextColor="#7C93AE"
-      />
-    </View>
   );
 }
 
@@ -438,19 +437,8 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     position: "relative",
     gap: 10,
+    zIndex: 50,
   },
-  inputWrap: {
-    height: 52,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "#1E2E42",
-    backgroundColor: "#101A28",
-    paddingHorizontal: 14,
-    gap: 8,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  input: { flex: 1, color: "#DFECF9", fontSize: 16, fontWeight: "700" },
   locationNote: { color: "#9EB4CB", fontSize: 11, marginTop: -4 },
   swapBtn: {
     position: "absolute",
