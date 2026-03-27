@@ -2,12 +2,8 @@ import { Router } from "express";
 import { z } from "zod";
 import { asyncHandler } from "../lib/asyncHandler";
 import { rateLimit } from "../lib/rateLimit";
-import {
-  calculateFare,
-  estimateBusTripMinutes,
-  haversineDistanceKm,
-  roundDistanceKm,
-} from "../lib/transitCalculations";
+import { computeTripETAs } from "../lib/eta";
+import { calculateFare, haversineDistanceKm, roundDistanceKm } from "../lib/transitCalculations";
 import { osmMapsService } from "../services/googleMapsService";
 
 const estimateSchema = z.object({
@@ -16,6 +12,8 @@ const estimateSchema = z.object({
   toLat: z.number().finite(),
   toLon: z.number().finite(),
   seed: z.string().optional(),
+  routeLabel: z.string().optional(),
+  progressMinutes: z.number().finite().min(0).optional(),
 });
 
 function isPlausibleLatLon(lat: number, lon: number) {
@@ -29,7 +27,7 @@ transitRouter.post(
   "/estimate",
   asyncHandler(async (req, res) => {
     const body = estimateSchema.parse(req.body);
-    let { fromLat, fromLon, toLat, toLon, seed } = body;
+    const { fromLat, fromLon, toLat, toLon, seed, routeLabel, progressMinutes } = body;
 
     if (!isPlausibleLatLon(fromLat, fromLon) || !isPlausibleLatLon(toLat, toLon)) {
       return res.status(400).json({ error: "Invalid coordinates" });
@@ -59,11 +57,17 @@ transitRouter.post(
     }
 
     const fareLKR = calculateFare(distanceKm === 0 && straightKm === 0 ? 0 : distanceKm);
-    const estimatedMinutes = estimateBusTripMinutes(distanceKm, { seed: seedKey });
+    const { totalJourneyMinutes, arrivingInMinutes } = computeTripETAs({
+      distanceKm,
+      seed: seedKey,
+      routeLabel,
+      progressMinutes: progressMinutes ?? null,
+    });
 
     res.json({
       distanceKm,
-      estimatedMinutes,
+      estimatedMinutes: totalJourneyMinutes,
+      arrivingInMinutes,
       fareLKR,
     });
   })

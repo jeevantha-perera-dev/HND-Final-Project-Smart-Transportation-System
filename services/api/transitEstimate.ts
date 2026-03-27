@@ -3,6 +3,7 @@ import { apiRequest } from "./client";
 export type TransitEstimateResponse = {
   distanceKm: number;
   estimatedMinutes: number;
+  arrivingInMinutes: number;
   fareLKR: number;
 };
 
@@ -12,6 +13,8 @@ export async function fetchTransitEstimate(input: {
   toLat: number;
   toLon: number;
   seed?: string;
+  routeLabel?: string;
+  progressMinutes?: number;
 }): Promise<TransitEstimateResponse> {
   return apiRequest<TransitEstimateResponse>("/transit/estimate", {
     method: "POST",
@@ -21,6 +24,8 @@ export async function fetchTransitEstimate(input: {
       toLat: input.toLat,
       toLon: input.toLon,
       seed: input.seed,
+      routeLabel: input.routeLabel,
+      progressMinutes: input.progressMinutes,
     },
   });
 }

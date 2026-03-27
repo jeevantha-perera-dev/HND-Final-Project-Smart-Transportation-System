@@ -37,42 +37,6 @@ export function calculateFare(distanceKm: number): number {
   return Math.round(100 + Math.ceil(over) * 5);
 }
 
-function hashSeed(seed: string): number {
-  let h = 2166136261;
-  for (let i = 0; i < seed.length; i += 1) {
-    h ^= seed.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return Math.abs(h);
-}
-
-export function estimateBusTripMinutes(
-  distanceKm: number,
-  options?: { avgSpeedKmh?: number; trafficFactor?: number; jitterPct?: number; seed?: string }
-): number {
-  const speed = options?.avgSpeedKmh ?? 30;
-  const traffic = options?.trafficFactor ?? 1.08;
-  const jitterPct = options?.jitterPct ?? 0.05;
-  const d = Number.isFinite(distanceKm) ? Math.max(0, distanceKm) : 0;
-  if (d <= 0) return Math.max(1, Math.round((0.5 / speed) * 60 * traffic));
-
-  let base = (d / speed) * 60 * traffic;
-  if (!Number.isFinite(base) || base <= 0) base = Math.max(1, (d / speed) * 60);
-
-  const seedI = options?.seed ?? "default";
-  const jitterUnit = hashSeed(seedI) % 10000 / 10_000;
-  const jitterMult = 1 + (jitterUnit * 2 - 1) * jitterPct;
-
-  return Math.max(1, Math.round(base * jitterMult));
-}
-
-export function estimateNearTermArrivalMinutes(tripMinutes: number, seed: string): number {
-  const t = Number.isFinite(tripMinutes) ? Math.max(1, tripMinutes) : 5;
-  const frac = 0.12 + (hashSeed(seed + ":arrive") % 7) / 100;
-  const raw = Math.round(t * frac + 2);
-  return Math.max(2, Math.min(25, raw));
-}
-
 export function roundDistanceKm(km: number): number {
   if (!Number.isFinite(km) || km < 0) return 0;
   const v = Math.round(km * 10) / 10;

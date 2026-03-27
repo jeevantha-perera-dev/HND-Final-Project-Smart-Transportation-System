@@ -6,6 +6,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { PassengerHomeStackParamList } from "../types";
 import { searchBusRoutes } from "../../../services/locationService";
 import { BusResult } from "../../../types/bus";
+import { formatArrivingHeadline, formatJourneyDuration } from "../../../utils/eta";
 
 const ACCENT = "#5E5CE6";
 const BG = "#000000";
@@ -215,7 +216,7 @@ function BusCard({ bus, onSelect }: { bus: BusResult; onSelect: () => void }) {
         <View style={styles.arrivalCol}>
           <View style={styles.arrivalRow}>
             <Ionicons name="time-outline" size={15} color={BUS_ID_BLUE} />
-            <Text style={styles.arrivalMins}>{Math.max(1, Math.round(bus.boardEtaMinutes))} min</Text>
+            <Text style={styles.arrivalMins}>{formatArrivingHeadline(bus.arrivingInMinutes)}</Text>
             <Text style={styles.arrivingInline}> ARRIVING</Text>
           </View>
         </View>
@@ -237,7 +238,7 @@ function BusCard({ bus, onSelect }: { bus: BusResult; onSelect: () => void }) {
       <View style={styles.predictionRow}>
         <Ionicons name="trending-up-outline" size={16} color={TEXT_MUTED} />
         <Text style={styles.predictionText}>
-          {`~${Math.max(1, Math.round(bus.durationMinutes))} min journey • ${bus.distanceKm.toFixed(1)} km • `}
+          {`${formatJourneyDuration(bus.durationMinutes)} • ${bus.distanceKm.toFixed(1)} km • `}
           <Text style={styles.predictionHighlight}>
             {bus.departureLabel}
           </Text>

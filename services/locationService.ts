@@ -1,13 +1,8 @@
 import { apiRequest } from "./api/client";
 import { fetchTransitEstimate } from "./api/transitEstimate";
 import { BusResult, BusStop, CrowdLevel, Journey, Place } from "../types/bus";
-import {
-  calculateFare,
-  estimateBusTripMinutes,
-  estimateNearTermArrivalMinutes,
-  haversineDistanceKm,
-  roundDistanceKm,
-} from "./transitCalculations";
+import { computeTripETAs, formatArrivingIn } from "../utils/eta";
+import { calculateFare, haversineDistanceKm, roundDistanceKm } from "./transitCalculations";
 
 const NOMINATIM_BASE = "https://nominatim.openstreetmap.org/search";
 const OVERPASS_URL = "https://overpass-api.de/api/interpreter";
@@ -124,9 +119,19 @@ export async function resolvePlaceCoordinates(place: Place): Promise<Place> {
   };
 }
 
-type TripMetrics = { distanceKm: number; estimatedMinutes: number; fareLKR: number };
+type TripMetrics = {
+  distanceKm: number;
+  estimatedMinutes: number;
+  arrivingInMinutes: number;
+  fareLKR: number;
+};
+
+function tripRouteLabel(from: Place, to: Place): string {
+  return `${from.name} → ${to.name}`;
+}
 
 async function resolveTripMetrics(from: Place, to: Place, seed: string): Promise<TripMetrics> {
+  const routeLabel = tripRouteLabel(from, to);
   try {
     const res = await fetchTransitEstimate({
       fromLat: from.lat,
@@ -134,14 +139,20 @@ async function resolveTripMetrics(from: Place, to: Place, seed: string): Promise
       toLat: to.lat,
       toLon: to.lon,
       seed,
+      routeLabel,
     });
     const distanceKm = roundDistanceKm(Number(res.distanceKm));
     const estimatedMinutes = Math.max(1, Math.round(Number(res.estimatedMinutes)));
+    let arrivingInMinutes = Math.max(1, Math.round(Number(res.arrivingInMinutes)));
     const fareLKR = Math.max(30, Math.round(Number(res.fareLKR)));
     if (!Number.isFinite(distanceKm)) {
       throw new Error("invalid estimate");
     }
-    return { distanceKm, estimatedMinutes, fareLKR };
+    if (!Number.isFinite(arrivingInMinutes) || arrivingInMinutes <= 0) {
+      const local = computeTripETAs({ distanceKm, seed, routeLabel });
+      arrivingInMinutes = local.arrivingInMinutes;
+    }
+    return { distanceKm, estimatedMinutes, arrivingInMinutes, fareLKR };
   } catch (err) {
     console.warn("[transit] estimate API failed, using OSRM + local fare/ETA", err);
     let straightKm = haversineDistanceKm(from.lat, from.lon, to.lat, to.lon);
@@ -157,9 +168,15 @@ async function resolveTripMetrics(from: Place, to: Place, seed: string): Promise
     if (!Number.isFinite(distanceKm) || distanceKm <= 0) {
       distanceKm = 0.1;
     }
+    const { totalJourneyMinutes, arrivingInMinutes } = computeTripETAs({
+      distanceKm,
+      seed,
+      routeLabel,
+    });
     return {
       distanceKm,
-      estimatedMinutes: estimateBusTripMinutes(distanceKm, { seed }),
+      estimatedMinutes: totalJourneyMinutes,
+      arrivingInMinutes,
       fareLKR: calculateFare(distanceKm),
     };
   }
@@ -167,17 +184,16 @@ async function resolveTripMetrics(from: Place, to: Place, seed: string): Promise
 
 function buildBusResultBase(
   metrics: TripMetrics,
-  extra: Omit<BusResult, "durationMinutes" | "distanceKm" | "price" | "fareLKR" | "departureLabel" | "boardEtaMinutes">
+  extra: Omit<BusResult, "durationMinutes" | "distanceKm" | "price" | "fareLKR" | "departureLabel" | "arrivingInMinutes">
 ): BusResult {
-  const boardEtaMinutes = estimateNearTermArrivalMinutes(metrics.estimatedMinutes, extra.id);
   return {
     ...extra,
     durationMinutes: metrics.estimatedMinutes,
     distanceKm: metrics.distanceKm,
     price: metrics.fareLKR,
     fareLKR: metrics.fareLKR,
-    boardEtaMinutes,
-    departureLabel: `Arriving in ~${boardEtaMinutes} min`,
+    arrivingInMinutes: metrics.arrivingInMinutes,
+    departureLabel: formatArrivingIn(metrics.arrivingInMinutes),
   };
 }
 
@@ -306,9 +322,14 @@ export async function getJourney(fromLat: number, fromLon: number, toLat: number
     } catch (error) {
       console.warn("[osrm] getJourney failed", error);
       const fallbackDistanceKm = distanceMeters(fromLat, fromLon, toLat, toLon) / 1000;
+      const d = roundDistanceKm(fallbackDistanceKm);
+      const { totalJourneyMinutes } = computeTripETAs({
+        distanceKm: d,
+        seed: "osrm-fallback",
+      });
       return {
         distanceKm: fallbackDistanceKm,
-        durationMinutes: estimateBusTripMinutes(roundDistanceKm(fallbackDistanceKm), { seed: "osrm-fallback" }),
+        durationMinutes: totalJourneyMinutes,
         geometry: "",
       };
     }

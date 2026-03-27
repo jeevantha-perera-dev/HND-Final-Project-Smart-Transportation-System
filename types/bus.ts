@@ -30,14 +30,14 @@ export type BusResult = {
   routeName: string;
   originStop: BusStop;
   destinationStop: BusStop;
-  /** Full-trip estimate at ~30 km/h (with traffic + jitter from backend when available). */
+  /** Full-trip duration (minutes) using Sri Lanka traffic-calibrated bus speeds. */
   durationMinutes: number;
   distanceKm: number;
   /** Single-trip fare (LKR), same as fareLKR for display. */
   price: number;
   fareLKR: number;
-  /** Shorter “bus reaching you soon” headline (minutes). */
-  boardEtaMinutes: number;
+  /** Simulated or tracked “arriving in” time (minutes); ~60–90% of journey without live progress. */
+  arrivingInMinutes: number;
   seatsAvailable: number;
   crowdLevel: CrowdLevel;
   departureLabel: string;
