@@ -9,8 +9,8 @@ import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { PassengerHomeStackParamList, PassengerRootStackParamList } from "../types";
 import { colors } from "../theme";
 import { reverseGeocode } from "../../../services/api/places";
-import LocationAutocomplete from "../../shared/LocationAutocomplete";
-import type { LocationSuggestion } from "../../../services/location/useLocationSuggestions";
+import LocationAutocomplete from "../../LocationAutocomplete";
+import { useBusSearch } from "../../../hooks/useBusSearch";
 
 type Props = NativeStackScreenProps<PassengerHomeStackParamList, "RouteSearch">;
 
@@ -37,8 +37,7 @@ export default function RouteSearchScreen({ navigation, route }: Props) {
   const defaultFrom = "Central Terminal, Downtown";
   const [from, setFrom] = useState(defaultFrom);
   const [to, setTo] = useState("");
-  const [selectedOrigin, setSelectedOrigin] = useState<LocationSuggestion | null>(null);
-  const [selectedDestination, setSelectedDestination] = useState<LocationSuggestion | null>(null);
+  const { fromPlace, setFromPlace, toPlace, setToPlace, search } = useBusSearch();
   const [selectedDate, setSelectedDate] = useState(() => {
     const today = new Date();
     return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(
@@ -230,12 +229,13 @@ export default function RouteSearchScreen({ navigation, route }: Props) {
                 onChange={(value) => {
                   hasEditedFromRef.current = true;
                   setFrom(value);
-                  setSelectedOrigin(null);
+                  setFromPlace(null);
                 }}
                 onSelect={(place) => {
-                  setSelectedOrigin(place);
+                  setFromPlace(place);
                   hasEditedFromRef.current = true;
                 }}
+                placeholder="From"
                 iconType="origin"
               />
               {locatingOrigin ? <Text style={styles.locationNote}>Detecting your current location...</Text> : null}
@@ -244,9 +244,9 @@ export default function RouteSearchScreen({ navigation, route }: Props) {
                 value={to}
                 onChange={(value) => {
                   setTo(value);
-                  setSelectedDestination(null);
+                  setToPlace(null);
                 }}
-                onSelect={(place) => setSelectedDestination(place)}
+                onSelect={(place) => setToPlace(place)}
                 placeholder="Enter destination"
                 iconType="destination"
               />
@@ -254,11 +254,11 @@ export default function RouteSearchScreen({ navigation, route }: Props) {
                 style={styles.swapBtn}
                 onPress={() => {
                   const currentFrom = from;
-                  const currentOrigin = selectedOrigin;
+                  const currentOrigin = fromPlace;
                   setFrom(to);
-                  setSelectedOrigin(selectedDestination);
+                  setFromPlace(toPlace);
                   setTo(currentFrom);
-                  setSelectedDestination(currentOrigin);
+                  setToPlace(currentOrigin);
                 }}
               >
                 <Ionicons name="swap-vertical-outline" size={14} color="#5EA1E6" />
@@ -335,23 +335,37 @@ export default function RouteSearchScreen({ navigation, route }: Props) {
 
             <Pressable
               style={styles.button}
-              onPress={() =>
+              onPress={async () => {
+                const result = await search();
                 navigation.navigate("AvailableBuses", {
                   from,
                   to,
-                  ...(selectedOrigin
-                    ? { originCoordinates: { latitude: selectedOrigin.latitude, longitude: selectedOrigin.longitude } }
-                    : {}),
-                  ...(selectedDestination
-                    ? {
-                        destinationCoordinates: {
-                          latitude: selectedDestination.latitude,
-                          longitude: selectedDestination.longitude,
-                        },
-                      }
-                    : {}),
-                })
-              }
+                  fromPlace:
+                    fromPlace ??
+                    (from
+                      ? {
+                          id: `manual-from-${from}`,
+                          name: from,
+                          displayName: from,
+                          lat: 0,
+                          lon: 0,
+                        }
+                      : undefined),
+                  toPlace:
+                    toPlace ??
+                    (to
+                      ? {
+                          id: `manual-to-${to}`,
+                          name: to,
+                          displayName: to,
+                          lat: 0,
+                          lon: 0,
+                        }
+                      : undefined),
+                  initialResults: result?.data ?? [],
+                  initialError: result?.error ?? null,
+                });
+              }}
             >
               <Ionicons name="search-outline" size={18} color="#0A1A2B" />
               <Text style={styles.buttonText}>Search Buses</Text>

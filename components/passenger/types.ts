@@ -1,4 +1,5 @@
 import { NavigatorScreenParams } from "@react-navigation/native";
+import { Place, BusResult } from "../../types/bus";
 
 export type PassengerTabsParamList = {
   Home: undefined;
@@ -15,8 +16,10 @@ export type PassengerHomeStackParamList = {
     | {
         from?: string;
         to?: string;
-        originCoordinates?: { latitude?: number; longitude?: number };
-        destinationCoordinates?: { latitude?: number; longitude?: number };
+        fromPlace?: Place;
+        toPlace?: Place;
+        initialResults?: BusResult[];
+        initialError?: string | null;
       }
     | undefined;
   SeatSelection: { tripId?: string; busId: string; routeName: string; price: string };

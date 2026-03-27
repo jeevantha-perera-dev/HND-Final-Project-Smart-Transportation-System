@@ -1,16 +1,5 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import {
-  ActivityIndicator,
-  Animated,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-  type NativeSyntheticEvent,
-  type TextInputKeyPressEventData,
-} from "react-native";
+import React, { useEffect, useRef, useState } from "react";
+import { ActivityIndicator, Animated, Pressable, StyleSheet, Text, TextInput, View, type NativeSyntheticEvent, type TextInputKeyPressEventData } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LocationSuggestion, resolveSuggestionDetails, useLocationSuggestions } from "../../services/location/useLocationSuggestions";
 
@@ -42,19 +31,6 @@ export default function LocationAutocomplete({ placeholder, value, onChange, onS
   }, [suggestions.length]);
 
   const iconColor = iconType === "destination" ? "#D46363" : "#4877AA";
-  const inputWebA11y = useMemo(
-    () =>
-      (Platform.OS === "web"
-        ? {
-            "aria-autocomplete": "list",
-            "aria-expanded": showDropdown,
-            "aria-activedescendant":
-              activeIndex >= 0 && suggestions[activeIndex] ? `location-option-${suggestions[activeIndex].place_id}` : undefined,
-          }
-        : {}) as Record<string, unknown>,
-    [showDropdown, activeIndex, suggestions]
-  );
-
   async function selectSuggestion(suggestion: LocationSuggestion) {
     const resolved = await resolveSuggestionDetails(suggestion);
     onChange(resolved.primaryText);
@@ -97,7 +73,6 @@ export default function LocationAutocomplete({ placeholder, value, onChange, onS
           placeholder={placeholder}
           placeholderTextColor="#7C93AE"
           accessibilityRole="search"
-          {...(inputWebA11y as never)}
         />
         {isLoading ? <ActivityIndicator size="small" color="#4A9EFF" /> : null}
       </View>
@@ -119,7 +94,6 @@ export default function LocationAutocomplete({ placeholder, value, onChange, onS
             },
           ]}
           accessibilityRole="menu"
-          {...((Platform.OS === "web" ? { role: "listbox" } : {}) as never)}
         >
           {suggestions.map((item, index) => {
             const active = index === activeIndex;
@@ -130,13 +104,6 @@ export default function LocationAutocomplete({ placeholder, value, onChange, onS
                 onHoverIn={() => setActiveIndex(index)}
                 style={[styles.row, active && styles.rowActive]}
                 accessibilityRole="button"
-                {...((Platform.OS === "web"
-                  ? {
-                      role: "option",
-                      id: `location-option-${item.place_id}`,
-                      "aria-selected": active,
-                    }
-                  : {}) as never)}
               >
                 <Ionicons name="location" size={16} color="#4A9EFF" style={styles.rowIcon} />
                 <View style={styles.rowBody}>
