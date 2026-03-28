@@ -80,10 +80,14 @@ Use this for the Firebase-first backend (Auth + Firestore + Functions-compatible
    Invoke-WebRequest -UseBasicParsing http://127.0.0.1:4000/api/v1/health
    ```
 
+## Creating test accounts
+
+See [docs/TEST_ACCOUNTS.md](docs/TEST_ACCOUNTS.md) for Firebase Console, in-app registration, and Auth emulator options.
+
 ## Smoke Test Checklist
 
-- Register a new passenger in-app.
-- Log in as `passenger@smartbus.local` / `password123`.
+- Register a new passenger in-app (or create a user per [docs/TEST_ACCOUNTS.md](docs/TEST_ACCOUNTS.md)).
+- Log in with that account (or demo users from `npm run seed:users` in `backend/` when using the Auth emulator).
 - Search trips and open live tracking.
 - Lock and confirm a seat booking.
 - Top up wallet, transfer funds, and open wallet history.

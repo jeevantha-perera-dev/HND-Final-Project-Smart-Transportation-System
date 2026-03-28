@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { FlatList, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
@@ -9,6 +9,9 @@ import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { PassengerHomeStackParamList, PassengerRootStackParamList } from "../types";
 import { colors } from "../theme";
 import { reverseGeocode } from "../../../services/api/places";
+import LocationAutocomplete from "../../LocationAutocomplete";
+import { useBusSearch } from "../../../hooks/useBusSearch";
+import { Place } from "../../../types/bus";
 
 type Props = NativeStackScreenProps<PassengerHomeStackParamList, "RouteSearch">;
 
@@ -35,6 +38,7 @@ export default function RouteSearchScreen({ navigation, route }: Props) {
   const defaultFrom = "Central Terminal, Downtown";
   const [from, setFrom] = useState(defaultFrom);
   const [to, setTo] = useState("");
+  const { fromPlace, setFromPlace, toPlace, setToPlace, search } = useBusSearch();
   const [selectedDate, setSelectedDate] = useState(() => {
     const today = new Date();
     return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(
@@ -159,9 +163,17 @@ export default function RouteSearchScreen({ navigation, route }: Props) {
       const latitude = position.coords.latitude;
       const longitude = position.coords.longitude;
 
-      // Always provide at least coordinates after GPS succeeds.
+      // Always provide at least coordinates after GPS succeeds (so search has real lat/lon).
       if (canAutofill) {
-        setFrom(`${latitude.toFixed(5)}, ${longitude.toFixed(5)}`);
+        const coordLabel = `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
+        setFrom(coordLabel);
+        setFromPlace({
+          id: `gps-${latitude.toFixed(4)}-${longitude.toFixed(4)}`,
+          name: "Current location",
+          displayName: coordLabel,
+          lat: latitude,
+          lon: longitude,
+        });
       }
 
       try {
@@ -175,13 +187,28 @@ export default function RouteSearchScreen({ navigation, route }: Props) {
 
         if (localShort && canAutofill && !localShort.startsWith(",")) {
           setFrom(localShort);
+          setFromPlace({
+            id: `gps-${latitude.toFixed(4)}-${longitude.toFixed(4)}`,
+            name: localShort.split(",")[0]?.trim() || localShort,
+            displayName: localShort,
+            lat: latitude,
+            lon: longitude,
+          });
           return;
         }
 
         const response = await reverseGeocode(latitude, longitude);
         const formattedAddress = response.results?.[0]?.formatted_address?.trim();
         if (formattedAddress && canAutofill) {
-          setFrom(toShortAddress(formattedAddress));
+          const short = toShortAddress(formattedAddress);
+          setFrom(short);
+          setFromPlace({
+            id: `gps-${latitude.toFixed(4)}-${longitude.toFixed(4)}`,
+            name: short.split(",")[0]?.trim() || short,
+            displayName: formattedAddress,
+            lat: latitude,
+            lon: longitude,
+          });
         } else if (!formattedAddress) {
           setLocationNote("Using coordinates. Could not resolve street address.");
         }
@@ -221,29 +248,41 @@ export default function RouteSearchScreen({ navigation, route }: Props) {
             </View>
 
             <View style={styles.inputStack}>
-              <Input
+              <LocationAutocomplete
                 value={from}
-                onChangeText={(value) => {
+                onChange={(value) => {
                   hasEditedFromRef.current = true;
                   setFrom(value);
+                  setFromPlace(null);
                 }}
-                icon="location-outline"
+                onSelect={(place) => {
+                  setFromPlace(place);
+                  hasEditedFromRef.current = true;
+                }}
+                placeholder="From"
+                iconType="origin"
               />
               {locatingOrigin ? <Text style={styles.locationNote}>Detecting your current location...</Text> : null}
               {!locatingOrigin && locationNote ? <Text style={styles.locationNote}>{locationNote}</Text> : null}
-              <Input
+              <LocationAutocomplete
                 value={to}
-                onChangeText={setTo}
-                icon="location-outline"
-                danger
+                onChange={(value) => {
+                  setTo(value);
+                  setToPlace(null);
+                }}
+                onSelect={(place) => setToPlace(place)}
                 placeholder="Enter destination"
+                iconType="destination"
               />
               <Pressable
                 style={styles.swapBtn}
                 onPress={() => {
                   const currentFrom = from;
+                  const currentOrigin = fromPlace;
                   setFrom(to);
+                  setFromPlace(toPlace);
                   setTo(currentFrom);
+                  setToPlace(currentOrigin);
                 }}
               >
                 <Ionicons name="swap-vertical-outline" size={14} color="#5EA1E6" />
@@ -320,12 +359,35 @@ export default function RouteSearchScreen({ navigation, route }: Props) {
 
             <Pressable
               style={styles.button}
-              onPress={() =>
+              onPress={async () => {
+                const manualFrom: Place | null = from.trim()
+                  ? (fromPlace ?? {
+                      id: `manual-from-${from.trim()}`,
+                      name: from.trim(),
+                      displayName: from.trim(),
+                      lat: 0,
+                      lon: 0,
+                    })
+                  : null;
+                const manualTo: Place | null = to.trim()
+                  ? (toPlace ?? {
+                      id: `manual-to-${to.trim()}`,
+                      name: to.trim(),
+                      displayName: to.trim(),
+                      lat: 0,
+                      lon: 0,
+                    })
+                  : null;
+                const result = await search({ from: manualFrom, to: manualTo });
                 navigation.navigate("AvailableBuses", {
                   from,
                   to,
-                })
-              }
+                  fromPlace: manualFrom ?? undefined,
+                  toPlace: manualTo ?? undefined,
+                  initialResults: result?.data ?? [],
+                  initialError: result?.error ?? null,
+                });
+              }}
             >
               <Ionicons name="search-outline" size={18} color="#0A1A2B" />
               <Text style={styles.buttonText}>Search Buses</Text>
@@ -336,33 +398,6 @@ export default function RouteSearchScreen({ navigation, route }: Props) {
         </View>
       </LinearGradient>
     </SafeAreaView>
-  );
-}
-
-function Input({
-  value,
-  onChangeText,
-  icon,
-  danger,
-  placeholder,
-}: {
-  value: string;
-  onChangeText: (text: string) => void;
-  icon: keyof typeof Ionicons.glyphMap;
-  danger?: boolean;
-  placeholder?: string;
-}) {
-  return (
-    <View style={styles.inputWrap}>
-      <Ionicons name={icon} size={16} color={danger ? "#D46363" : "#4877AA"} />
-      <TextInput
-        value={value}
-        onChangeText={onChangeText}
-        style={styles.input}
-        placeholder={placeholder}
-        placeholderTextColor="#7C93AE"
-      />
-    </View>
   );
 }
 
@@ -438,19 +473,8 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     position: "relative",
     gap: 10,
+    zIndex: 50,
   },
-  inputWrap: {
-    height: 52,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "#1E2E42",
-    backgroundColor: "#101A28",
-    paddingHorizontal: 14,
-    gap: 8,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  input: { flex: 1, color: "#DFECF9", fontSize: 16, fontWeight: "700" },
   locationNote: { color: "#9EB4CB", fontSize: 11, marginTop: -4 },
   swapBtn: {
     position: "absolute",

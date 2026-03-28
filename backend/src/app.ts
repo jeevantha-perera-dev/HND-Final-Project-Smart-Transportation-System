@@ -8,7 +8,9 @@ import { apiRouter } from "./routes";
 export function createApiApp() {
   const app = express();
   app.use(helmet());
-  app.use(cors());
+  // Allow any origin during development so physical devices on Wi-Fi
+  // can reach the API without being blocked by CORS.
+  app.use(cors({ origin: true }));
   app.use(express.json({ limit: "1mb" }));
   app.use(morgan("dev"));
 

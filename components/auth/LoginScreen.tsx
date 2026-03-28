@@ -6,9 +6,11 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  TouchableOpacity,
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { getAuthErrorMessage, getFirebaseAuthErrorCode } from "../../services/firebase/authErrors";
 
 export type UserRole = "passenger" | "driver";
 
@@ -28,19 +30,42 @@ export default function LoginScreen({
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [authErrorCode, setAuthErrorCode] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   async function handleLogin() {
     setError(null);
-    if (!email.trim() || !password.trim()) {
-      setError("Email and password are required.");
+    setAuthErrorCode("");
+
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail) {
+      setError("Please enter your email address.");
       return;
     }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimmedEmail)) {
+      setError("Please enter a valid email address.");
+      return;
+    }
+    if (!password) {
+      setError("Please enter your password.");
+      return;
+    }
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters.");
+      return;
+    }
+
     try {
       setSubmitting(true);
-      await onLogin?.({ role, email: email.trim().toLowerCase(), password });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Login failed");
+      await onLogin?.({ role, email: trimmedEmail.toLowerCase(), password });
+    } catch (err: unknown) {
+      const code = getFirebaseAuthErrorCode(err);
+      if (code) {
+        console.warn("Auth error code:", code);
+      }
+      setAuthErrorCode(code);
+      setError(getAuthErrorMessage(code));
     } finally {
       setSubmitting(false);
     }
@@ -137,6 +162,15 @@ export default function LoginScreen({
           </Pressable>
 
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+          {authErrorCode === "auth/user-not-found" ? (
+            <TouchableOpacity onPress={() => onRegister?.()} activeOpacity={0.7}>
+              <Text style={styles.registerNudge}>
+                Don&apos;t have an account yet?{" "}
+                <Text style={styles.registerLink}>Create one here →</Text>
+              </Text>
+            </TouchableOpacity>
+          ) : null}
 
           <Pressable style={styles.loginButton} onPress={handleLogin} disabled={submitting}>
             <Text style={styles.loginText}>{submitting ? "Logging in..." : "Log in"}</Text>
@@ -292,5 +326,16 @@ const styles = StyleSheet.create({
     textAlign: "center",
     fontSize: 13,
     fontWeight: "600",
+  },
+  registerNudge: {
+    marginTop: 8,
+    marginBottom: 12,
+    textAlign: "center",
+    color: "#8EA1B4",
+    fontSize: 14,
+  },
+  registerLink: {
+    color: "#4A9EFF",
+    fontWeight: "700",
   },
 });

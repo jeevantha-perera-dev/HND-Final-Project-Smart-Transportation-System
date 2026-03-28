@@ -4,7 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { PassengerHomeStackParamList } from "../types";
-import { searchTrips } from "../../../services/api/trips";
+import { searchBusRoutes } from "../../../services/locationService";
+import { BusResult } from "../../../types/bus";
+import { formatArrivingHeadline, formatJourneyDuration } from "../../../utils/eta";
 
 const ACCENT = "#5E5CE6";
 const BG = "#000000";
@@ -19,104 +21,83 @@ const CHIP_BORDER = "#3A3D48";
 const BUS_ID_BLUE = "#6EB4FF";
 const PREDICTION_PURPLE = "#B4A9FF";
 
-type Crowd = "low" | "medium" | "high";
-
-type BusOption = {
-  tripId?: string;
-  id: string;
-  routeName: string;
-  arrivalMins: number;
-  seatsLeft: number;
-  predictedSeats: number;
-  price: string;
-  express?: boolean;
-  crowd: Crowd;
-};
-
-const MOCK_BUSES: BusOption[] = [
-  {
-    id: "X-104",
-    routeName: "Downtown Express",
-    arrivalMins: 4,
-    seatsLeft: 14,
-    predictedSeats: 18,
-    price: "$3.50",
-    express: true,
-    crowd: "low",
-  },
-  {
-    id: "202",
-    routeName: "Crosstown Central",
-    arrivalMins: 12,
-    seatsLeft: 6,
-    predictedSeats: 4,
-    price: "$2.75",
-    crowd: "medium",
-  },
-  {
-    id: "A-12",
-    routeName: "Airport Link",
-    arrivalMins: 18,
-    seatsLeft: 3,
-    predictedSeats: 2,
-    price: "$4.00",
-    express: true,
-    crowd: "high",
-  },
-  {
-    id: "B-88",
-    routeName: "Harbor Loop",
-    arrivalMins: 22,
-    seatsLeft: 20,
-    predictedSeats: 22,
-    price: "$2.50",
-    crowd: "low",
-  },
-];
-
 const SORT_FILTERS = ["Recommended", "Cheapest", "Earliest", "Express"] as const;
 
 type Props = NativeStackScreenProps<PassengerHomeStackParamList, "AvailableBuses">;
 
 export default function AvailableBusesScreen({ navigation, route }: Props) {
   const [sortBy, setSortBy] = useState<(typeof SORT_FILTERS)[number]>("Recommended");
-  const [items, setItems] = useState<BusOption[]>(MOCK_BUSES);
-  const [error, setError] = useState<string | null>(null);
+  const [items, setItems] = useState<BusResult[]>(route.params?.initialResults ?? []);
+  const [loading, setLoading] = useState(false);
+  const [retrying, setRetrying] = useState(false);
+  const [error, setError] = useState<string | null>(route.params?.initialError ?? null);
+
+  const fetchLiveResults = async () => {
+    if (!route.params?.fromPlace || !route.params?.toPlace) {
+      setError("Could not fetch live data. Check your connection.");
+      return;
+    }
+    setLoading(true);
+    setRetrying(false);
+    setError(null);
+    try {
+      const data = await searchBusRoutes(route.params.fromPlace, route.params.toPlace);
+      setItems(data);
+    } catch (firstError) {
+      console.warn("[bus-search] initial fetch failed", firstError);
+      setRetrying(true);
+      try {
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        const retried = await searchBusRoutes(route.params.fromPlace, route.params.toPlace);
+        setItems(retried);
+      } catch (secondError) {
+        console.warn("[bus-search] retry failed", secondError);
+        setError("Could not fetch live data. Check your connection.");
+      } finally {
+        setRetrying(false);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     let mounted = true;
     (async () => {
       try {
-        const result = await searchTrips(route.params?.from, route.params?.to);
+        setLoading(true);
+        if (!route.params?.fromPlace || !route.params?.toPlace) {
+          if (mounted) setError("Could not fetch live data. Check your connection.");
+          return;
+        }
+        const result = await searchBusRoutes(route.params.fromPlace, route.params.toPlace);
         if (!mounted) return;
-        setItems(
-          result.items.map((trip) => ({
-            tripId: trip.id,
-            id: trip.routeId,
-            routeName: trip.routeName,
-            arrivalMins: trip.arrivalMins,
-            seatsLeft: trip.seatsLeft,
-            predictedSeats: trip.predictedSeats,
-            price: `$${trip.price.toFixed(2)}`,
-            express: trip.express,
-            crowd: trip.seatsLeft > 12 ? "low" : trip.seatsLeft > 5 ? "medium" : "high",
-          }))
-        );
+        setItems(result);
       } catch (err) {
         if (!mounted) return;
-        setError(err instanceof Error ? err.message : "Could not load buses");
+        console.warn("[bus-search] load failed", err);
+        setError("Could not fetch live data. Check your connection.");
+      } finally {
+        if (mounted) setLoading(false);
       }
     })();
     return () => {
       mounted = false;
     };
-  }, [route.params?.from, route.params?.to]);
+  }, [route.params?.fromPlace, route.params?.toPlace]);
 
   const buses = useMemo(() => {
     const copy = [...items];
-    if (sortBy === "Cheapest") copy.sort((a, b) => parseFloat(a.price.slice(1)) - parseFloat(b.price.slice(1)));
-    if (sortBy === "Earliest") copy.sort((a, b) => a.arrivalMins - b.arrivalMins);
-    if (sortBy === "Express") copy.sort((a, b) => (b.express ? 1 : 0) - (a.express ? 1 : 0));
+    if (sortBy === "Cheapest") copy.sort((a, b) => a.price - b.price);
+    if (sortBy === "Earliest") copy.sort((a, b) => a.durationMinutes - b.durationMinutes);
+    if (sortBy === "Express") return copy.filter((item) => item.isExpress);
+    if (sortBy === "Recommended") {
+      copy.sort((a, b) => {
+        if (a.type === "Recommended" && b.type !== "Recommended") return -1;
+        if (a.type !== "Recommended" && b.type === "Recommended") return 1;
+        return a.durationMinutes - b.durationMinutes;
+      });
+    }
     return copy;
   }, [sortBy, items]);
 
@@ -171,21 +152,40 @@ export default function AvailableBusesScreen({ navigation, route }: Props) {
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
         >
-          {error ? <Text style={styles.errorText}>{error}</Text> : null}
-          {buses.map((bus) => (
+          {loading ? <SkeletonState retrying={retrying} /> : null}
+          {!loading && error ? (
+            <View style={styles.emptyWrap}>
+              <Text style={styles.errorText}>{error}</Text>
+              <Pressable style={styles.retryBtn} onPress={fetchLiveResults}>
+                <Text style={styles.retryBtnText}>Try Again</Text>
+              </Pressable>
+            </View>
+          ) : null}
+          {!loading && !error && buses.length === 0 ? (
+            <View style={styles.emptyWrap}>
+              <Text style={styles.emptyTitle}>No direct bus routes found between these stops.</Text>
+              <Text style={styles.emptySub}>Try expanding your search area or check nearby stops.</Text>
+              <Pressable style={styles.retryBtn} onPress={fetchLiveResults}>
+                <Text style={styles.retryBtnText}>Try Again</Text>
+              </Pressable>
+            </View>
+          ) : null}
+          {!loading &&
+            !error &&
+            buses.map((bus) => (
             <BusCard
               key={bus.id}
               bus={bus}
               onSelect={() =>
                 navigation.navigate("SeatSelection", {
-                  tripId: bus.tripId,
-                  busId: bus.id,
+                  tripId: bus.id,
+                  busId: `R-${bus.routeNumber}`,
                   routeName: bus.routeName,
-                  price: bus.price,
+                  price: `LKR ${bus.price.toFixed(0)}`,
                 })
               }
             />
-          ))}
+            ))}
 
           <View style={styles.footerHint}>
             <View style={styles.footerIconWrap}>
@@ -201,13 +201,13 @@ export default function AvailableBusesScreen({ navigation, route }: Props) {
   );
 }
 
-function BusCard({ bus, onSelect }: { bus: BusOption; onSelect: () => void }) {
+function BusCard({ bus, onSelect }: { bus: BusResult; onSelect: () => void }) {
   return (
     <View style={styles.card}>
       <View style={styles.cardTop}>
         <View style={styles.busIdRow}>
-          <Text style={styles.busId}>{bus.id}</Text>
-          {bus.express ? (
+          <Text style={styles.busId}>{`R-${bus.routeNumber}`}</Text>
+          {bus.isExpress ? (
             <View style={styles.expressTag}>
               <Text style={styles.expressTagText}>Express</Text>
             </View>
@@ -216,7 +216,7 @@ function BusCard({ bus, onSelect }: { bus: BusOption; onSelect: () => void }) {
         <View style={styles.arrivalCol}>
           <View style={styles.arrivalRow}>
             <Ionicons name="time-outline" size={15} color={BUS_ID_BLUE} />
-            <Text style={styles.arrivalMins}>{bus.arrivalMins}m</Text>
+            <Text style={styles.arrivalMins}>{formatArrivingHeadline(bus.arrivingInMinutes)}</Text>
             <Text style={styles.arrivingInline}> ARRIVING</Text>
           </View>
         </View>
@@ -228,9 +228,9 @@ function BusCard({ bus, onSelect }: { bus: BusOption; onSelect: () => void }) {
         <Ionicons name="bus-outline" size={18} color={TEXT_MUTED} />
         <View style={styles.seatsLeftCol}>
           <Text style={styles.seatsLabel}>SEATS LEFT</Text>
-          <Text style={styles.seatsValue}>{bus.seatsLeft} Available</Text>
+          <Text style={styles.seatsValue}>{bus.seatsAvailable} Available</Text>
         </View>
-        <CrowdPill crowd={bus.crowd} />
+        <CrowdPill crowd={bus.crowdLevel} />
       </View>
 
       <View style={styles.cardDivider} />
@@ -238,9 +238,9 @@ function BusCard({ bus, onSelect }: { bus: BusOption; onSelect: () => void }) {
       <View style={styles.predictionRow}>
         <Ionicons name="trending-up-outline" size={16} color={TEXT_MUTED} />
         <Text style={styles.predictionText}>
-          Predicted Seats When Arrived:{" "}
+          {`${formatJourneyDuration(bus.durationMinutes)} • ${bus.distanceKm.toFixed(1)} km • `}
           <Text style={styles.predictionHighlight}>
-            {bus.predictedSeats} seats
+            {bus.departureLabel}
           </Text>
         </Text>
         <Ionicons name="information-circle-outline" size={16} color={TEXT_MUTED} />
@@ -251,7 +251,7 @@ function BusCard({ bus, onSelect }: { bus: BusOption; onSelect: () => void }) {
       <View style={styles.cardBottom}>
         <View>
           <Text style={styles.priceLabel}>SINGLE TRIP</Text>
-          <Text style={styles.priceValue}>{bus.price}</Text>
+          <Text style={styles.priceValue}>{`LKR ${bus.fareLKR.toFixed(0)}`}</Text>
         </View>
         <Pressable style={styles.selectBtn} onPress={onSelect}>
           <Text style={styles.selectBtnText}>Select</Text>
@@ -262,17 +262,32 @@ function BusCard({ bus, onSelect }: { bus: BusOption; onSelect: () => void }) {
   );
 }
 
-function CrowdPill({ crowd }: { crowd: Crowd }) {
+function CrowdPill({ crowd }: { crowd: BusResult["crowdLevel"] }) {
   const cfg = {
-    low: { label: "Low Crowd", bg: "#1A3D2A", fg: "#34C759", dot: "#34C759" },
-    medium: { label: "Medium Crowd", bg: "#3D3010", fg: "#FF9F0A", dot: "#FF9F0A" },
-    high: { label: "High Crowd", bg: "#3D1518", fg: "#FF453A", dot: "#FF453A" },
+    Low: { label: "Low Crowd", bg: "#1A3D2A", fg: "#34C759", dot: "#34C759" },
+    Medium: { label: "Medium Crowd", bg: "#3D3010", fg: "#FF9F0A", dot: "#FF9F0A" },
+    High: { label: "High Crowd", bg: "#3D1518", fg: "#FF453A", dot: "#FF453A" },
   }[crowd];
 
   return (
     <View style={[styles.crowdPill, { backgroundColor: cfg.bg }]}>
       <View style={[styles.crowdDot, { backgroundColor: cfg.dot }]} />
       <Text style={[styles.crowdText, { color: cfg.fg }]}>{cfg.label}</Text>
+    </View>
+  );
+}
+
+function SkeletonState({ retrying }: { retrying: boolean }) {
+  return (
+    <View style={styles.skeletonWrap}>
+      <Text style={styles.skeletonTitle}>{retrying ? "Retrying..." : "Finding real buses near you..."}</Text>
+      {[1, 2, 3].map((item) => (
+        <View key={item} style={styles.skeletonCard}>
+          <View style={styles.skeletonLineLg} />
+          <View style={styles.skeletonLineMd} />
+          <View style={styles.skeletonLineSm} />
+        </View>
+      ))}
     </View>
   );
 }
@@ -452,4 +467,35 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     fontWeight: "600",
   },
+  emptyWrap: {
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#2E323D",
+    backgroundColor: "#171A22",
+    padding: 16,
+    marginBottom: 10,
+  },
+  emptyTitle: { color: "#E9EEF5", fontSize: 15, fontWeight: "700", marginBottom: 8 },
+  emptySub: { color: "#A2B2C5", fontSize: 12, lineHeight: 18, marginBottom: 12 },
+  retryBtn: {
+    alignSelf: "flex-start",
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    backgroundColor: ACCENT,
+  },
+  retryBtnText: { color: "#FFF", fontWeight: "700", fontSize: 12 },
+  skeletonWrap: { gap: 12, marginBottom: 12 },
+  skeletonTitle: { color: "#D7E6F8", fontSize: 14, fontWeight: "700" },
+  skeletonCard: {
+    borderRadius: 14,
+    backgroundColor: "#171A22",
+    borderWidth: 1,
+    borderColor: "#2C3340",
+    padding: 14,
+    gap: 10,
+  },
+  skeletonLineLg: { height: 18, width: "55%", backgroundColor: "#2B3240", borderRadius: 8 },
+  skeletonLineMd: { height: 14, width: "80%", backgroundColor: "#2B3240", borderRadius: 8 },
+  skeletonLineSm: { height: 14, width: "35%", backgroundColor: "#2B3240", borderRadius: 8 },
 });

@@ -1,7 +1,7 @@
 import http from "node:http";
 import { Server as SocketIOServer } from "socket.io";
 import { createApiApp } from "./app";
-import { env } from "./config/env";
+import "./config/env";
 import { trackingHub } from "./services/trackingHub";
 
 const app = createApiApp();
@@ -25,8 +25,18 @@ io.on("connection", (socket) => {
   });
 });
 
-server.listen(env.PORT, () => {
-  console.log(`Backend listening on port ${env.PORT}`);
+const port = Number(process.env.PORT) || 4000;
+
+server.on("error", (error: NodeJS.ErrnoException) => {
+  if (error.code === "EADDRINUSE") {
+    console.error("Port is already in use. Please kill the process or change the PORT in .env.");
+    process.exit(1);
+  }
+  throw error;
+});
+
+server.listen(port, () => {
+  console.log(`Backend listening on port ${port}`);
 });
 
 async function shutdown() {

@@ -1,0 +1,45 @@
+[debug] [2026-03-27T19:42:42.541Z] ----------------------------------------------------------------------
+[debug] [2026-03-27T19:42:42.544Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\GF 63\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js emulators:start --config firebase.json --only auth,firestore
+[debug] [2026-03-27T19:42:42.544Z] CLI Version:   15.11.0
+[debug] [2026-03-27T19:42:42.544Z] Platform:      win32
+[debug] [2026-03-27T19:42:42.544Z] Node Version:  v22.16.0
+[debug] [2026-03-27T19:42:42.545Z] Time:          Sat Mar 28 2026 01:12:42 GMT+0530 (India Standard Time)
+[debug] [2026-03-27T19:42:42.545Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-03-27T19:42:44.444Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-03-27T19:42:44.445Z] > authorizing via signed-in user (jeevantha76@gmail.com)
+[debug] [2026-03-27T19:42:44.597Z] java version "25.0.1" 2025-10-21 LTS
+Java(TM) SE Runtime Environment (build 25.0.1+8-LTS-27)
+
+[debug] [2026-03-27T19:42:44.598Z] Java HotSpot(TM) 64-Bit Server VM (build 25.0.1+8-LTS-27, mixed mode, sharing)
+
+[debug] [2026-03-27T19:42:44.615Z] Parsed Java major version: 25
+[info] i  emulators: Starting emulators: auth, firestore {"metadata":{"emulator":{"name":"hub"},"message":"Starting emulators: auth, firestore"}}
+[debug] [2026-03-27T19:42:44.629Z] [logging] Logging Emulator only supports listening on one address (127.0.0.1). Not listening on ::1
+[debug] [2026-03-27T19:42:44.629Z] assigned listening specs for emulators {"user":{"ui":[{"address":"0.0.0.0","family":"IPv4","port":4001}],"auth":[{"address":"0.0.0.0","family":"IPv4","port":9099}],"firestore":[{"address":"0.0.0.0","family":"IPv4","port":8080}],"firestore.websocket":[{"address":"0.0.0.0","family":"IPv4","port":9150}],"hub":[{"address":"127.0.0.1","family":"IPv4","port":4400},{"address":"::1","family":"IPv6","port":4400}],"logging":[{"address":"127.0.0.1","family":"IPv4","port":4500}]},"metadata":{"message":"assigned listening specs for emulators"}}
+[debug] [2026-03-27T19:42:44.636Z] Found emulator hub locator: {"version":"15.11.0","origins":["http://127.0.0.1:4400","http://[::1]:4400"],"pid":20300}
+[debug] [2026-03-27T19:42:44.636Z] Write emulator hub locator at C:\Users\GF63~1\AppData\Local\Temp\hub-smart-transit-local.json
+[debug] [2026-03-27T19:42:44.650Z] Ignoring unsupported arg: auto_download {"metadata":{"emulator":{"name":"firestore"},"message":"Ignoring unsupported arg: auto_download"}}
+[debug] [2026-03-27T19:42:44.651Z] Ignoring unsupported arg: single_project_mode_error {"metadata":{"emulator":{"name":"firestore"},"message":"Ignoring unsupported arg: single_project_mode_error"}}
+[debug] [2026-03-27T19:42:44.651Z] Starting Firestore Emulator with command {"binary":"java","args":["-Dgoogle.cloud_firestore.debug_log_level=FINE","-Duser.language=en","-jar","C:\\Users\\GF 63\\.cache\\firebase\\emulators\\cloud-firestore-emulator-v1.20.4.jar","--host","0.0.0.0","--port",8080,"--websocket_port",9150,"--project_id","smart-transit-local","--rules","C:\\Users\\GF 63\\Documents\\HND 25.1f\\SmartBusApp\\firestore.rules","--single_project_mode",true],"optionalArgs":["port","webchannel_port","host","rules","websocket_port","functions_emulator","seed_from_export","project_id","single_project_mode"],"joinArgs":false,"shell":false,"port":8080} {"metadata":{"emulator":{"name":"firestore"},"message":"Starting Firestore Emulator with command {\"binary\":\"java\",\"args\":[\"-Dgoogle.cloud_firestore.debug_log_level=FINE\",\"-Duser.language=en\",\"-jar\",\"C:\\\\Users\\\\GF 63\\\\.cache\\\\firebase\\\\emulators\\\\cloud-firestore-emulator-v1.20.4.jar\",\"--host\",\"0.0.0.0\",\"--port\",8080,\"--websocket_port\",9150,\"--project_id\",\"smart-transit-local\",\"--rules\",\"C:\\\\Users\\\\GF 63\\\\Documents\\\\HND 25.1f\\\\SmartBusApp\\\\firestore.rules\",\"--single_project_mode\",true],\"optionalArgs\":[\"port\",\"webchannel_port\",\"host\",\"rules\",\"websocket_port\",\"functions_emulator\",\"seed_from_export\",\"project_id\",\"single_project_mode\"],\"joinArgs\":false,\"shell\":false,\"port\":8080}"}}
+[info] i  firestore: Firestore Emulator logging to firestore-debug.log {"metadata":{"emulator":{"name":"firestore"},"message":"Firestore Emulator logging to firestore-debug.log"}}
+[info] +  firestore: Firestore Emulator UI websocket is running on 9150. {"metadata":{"emulator":{"name":"firestore"},"message":"Firestore Emulator UI websocket is running on 9150."}}
+[debug] [2026-03-27T19:42:57.028Z] Could not find VSCode notification endpoint: FetchError: request to http://localhost:40001/vscode/notify failed, reason: . If you are not running the Firebase Data Connect VSCode extension, this is expected and not an issue.
+[info] 
+┌─────────────────────────────────────────────────────────────┐
+│ ✔  All emulators ready! It is now safe to connect your app. │
+│ i  View Emulator UI at http://127.0.0.1:4001/               │
+└─────────────────────────────────────────────────────────────┘
+
+┌────────────────┬──────────────┬─────────────────────────────────┐
+│ Emulator       │ Host:Port    │ View in Emulator UI             │
+├────────────────┼──────────────┼─────────────────────────────────┤
+│ Authentication │ 0.0.0.0:9099 │ http://127.0.0.1:4001/auth      │
+├────────────────┼──────────────┼─────────────────────────────────┤
+│ Firestore      │ 0.0.0.0:8080 │ http://127.0.0.1:4001/firestore │
+└────────────────┴──────────────┴─────────────────────────────────┘
+  Emulator Hub host: 127.0.0.1 port: 4400
+  Other reserved ports: 4500, 9150
+
+Issues? Report them at https://github.com/firebase/firebase-tools/issues and attach the *-debug.log files.
+ 
