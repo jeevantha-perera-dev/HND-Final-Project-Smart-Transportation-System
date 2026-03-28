@@ -14,6 +14,9 @@ import DriverTripHistoryScreen from "./DriverTripHistoryScreen";
 import DriverQueueDetailsScreen, { DriverPassengerDetails } from "./DriverQueueDetailsScreen";
 import DriverIncidentHistoryScreen from "./DriverIncidentHistoryScreen";
 import DriverSettingsScreen from "./DriverSettingsScreen";
+import DriverScheduleTripScreen from "./DriverScheduleTripScreen";
+import DriverScheduledTripsScreen from "./DriverScheduledTripsScreen";
+import { DriverScheduledTrip } from "../../services/api/trips";
 
 type DriverTab = "dashboard" | "performance" | "settings";
 type DriverOverlay =
@@ -26,7 +29,9 @@ type DriverOverlay =
   | "routeDetails"
   | "tripHistory"
   | "queueDetails"
-  | "incidentHistory";
+  | "incidentHistory"
+  | "scheduleTrip"
+  | "scheduledTrips";
 
 type DriverHomeProps = {
   onLogout?: () => void;
@@ -36,6 +41,7 @@ export default function DriverHome({ onLogout }: DriverHomeProps) {
   const [activeTab, setActiveTab] = useState<DriverTab>("dashboard");
   const [overlay, setOverlay] = useState<DriverOverlay>(null);
   const [selectedRoute, setSelectedRoute] = useState<DriverRouteSummary | null>(null);
+  const [activeTrip, setActiveTrip] = useState<DriverScheduledTrip | null>(null);
   const [selectedPassenger, setSelectedPassenger] = useState<DriverPassengerDetails | null>(null);
   const [queueBackTarget, setQueueBackTarget] = useState<"liveTrip" | "tripHistory">("liveTrip");
 
@@ -88,6 +94,28 @@ export default function DriverHome({ onLogout }: DriverHomeProps) {
       );
     }
 
+    if (overlay === "scheduleTrip") {
+      return (
+        <DriverScheduleTripScreen
+          onBack={() => setOverlay(null)}
+          onScheduled={() => setOverlay("scheduledTrips")}
+        />
+      );
+    }
+
+    if (overlay === "scheduledTrips") {
+      return (
+        <DriverScheduledTripsScreen
+          onBack={() => setOverlay(null)}
+          onOpenSchedule={() => setOverlay("scheduleTrip")}
+          onSelectTrip={(trip) => {
+            setActiveTrip(trip);
+            setOverlay("liveTrip");
+          }}
+        />
+      );
+    }
+
     if (overlay === "routesList") {
       return (
         <DriverRoutesListScreen
@@ -131,6 +159,8 @@ export default function DriverHome({ onLogout }: DriverHomeProps) {
     if (overlay === "liveTrip") {
       return (
         <DriverLiveTripScreen
+          trip={activeTrip}
+          onBack={() => setOverlay(null)}
           onOpenIncident={() => setOverlay("reportIncident")}
           onOpenScanner={() => setOverlay("scanner")}
           onOpenQueueDetails={(passenger) => {
@@ -155,12 +185,13 @@ export default function DriverHome({ onLogout }: DriverHomeProps) {
 
     return (
       <DriverDashboardScreen
-        onStartTrip={() => setOverlay("liveTrip")}
+        onStartTrip={() => setOverlay("scheduledTrips")}
         onViewRoutes={() => setOverlay("routesList")}
         onViewTripHistory={() => setOverlay("tripHistory")}
+        onScheduleTrip={() => setOverlay("scheduleTrip")}
       />
     );
-  }, [activeTab, onLogout, overlay, queueBackTarget, selectedPassenger, selectedRoute]);
+  }, [activeTab, activeTrip, onLogout, overlay, queueBackTarget, selectedPassenger, selectedRoute]);
 
   return (
     <SafeAreaView style={styles.container}>

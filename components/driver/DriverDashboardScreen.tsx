@@ -6,12 +6,14 @@ type DriverDashboardScreenProps = {
   onStartTrip?: () => void;
   onViewRoutes?: () => void;
   onViewTripHistory?: () => void;
+  onScheduleTrip?: () => void;
 };
 
 export default function DriverDashboardScreen({
   onStartTrip,
   onViewRoutes,
   onViewTripHistory,
+  onScheduleTrip,
 }: DriverDashboardScreenProps) {
   return (
     <ScrollView
@@ -36,9 +38,14 @@ export default function DriverDashboardScreen({
 
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>UP NEXT</Text>
-        <Pressable onPress={onViewRoutes}>
-          <Text style={styles.sectionLink}>View All Routes</Text>
-        </Pressable>
+        <View style={styles.sectionActions}>
+          <Pressable onPress={onScheduleTrip}>
+            <Text style={styles.sectionLink}>Schedule a Trip</Text>
+          </Pressable>
+          <Pressable onPress={onViewRoutes}>
+            <Text style={styles.sectionLink}>View All Routes</Text>
+          </Pressable>
+        </View>
       </View>
 
       <View style={styles.assignmentCard}>
@@ -193,6 +200,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+  },
+  sectionActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
   },
   sectionTitle: {
     color: "#D7E1EC",

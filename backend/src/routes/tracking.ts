@@ -32,6 +32,9 @@ trackingRouter.post(
     const tripSnap = await tripRef.get();
     if (!tripSnap.exists) throw new HttpError(404, "Trip not found");
     const trip = tripSnap.data()!;
+    if (req.auth!.role !== "ADMIN" && String(trip.driverId ?? "") !== req.auth!.userId) {
+      throw new HttpError(403, "You are not assigned to this trip");
+    }
 
     const positionId = randomUUID();
     const capturedAt = new Date().toISOString();

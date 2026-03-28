@@ -3,6 +3,7 @@ import { z } from "zod";
 import { collections } from "../db/collections";
 import { firestore } from "../db/firestore";
 import { asyncHandler } from "../lib/asyncHandler";
+import { requireAuth, requireRole } from "../lib/auth";
 import { toDate, toIso, toNumber } from "../lib/firestoreUtils";
 import { HttpError } from "../lib/httpError";
 import { trackingHub } from "../services/trackingHub";
@@ -12,7 +13,118 @@ const searchSchema = z.object({
   to: z.string().optional(),
 });
 
+const scheduleTripSchema = z
+  .object({
+    routeCode: z.string().min(1),
+    routeName: z.string().min(1),
+    vehicleCode: z.string().min(1),
+    originStopName: z.string().min(2),
+    destinationStopName: z.string().min(2),
+    departureAt: z.coerce.date(),
+    arrivalAt: z.coerce.date().optional(),
+    seatsAvailable: z.coerce.number().int().positive(),
+    baseFare: z.coerce.number().nonnegative(),
+    notes: z.string().max(500).optional(),
+    isExpress: z.boolean().optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.arrivalAt && value.arrivalAt <= value.departureAt) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Arrival time must be later than departure time",
+        path: ["arrivalAt"],
+      });
+    }
+  });
+
 export const tripsRouter = Router();
+
+tripsRouter.post(
+  "/schedule",
+  requireAuth,
+  requireRole("DRIVER", "ADMIN"),
+  asyncHandler(async (req, res) => {
+    const payload = scheduleTripSchema.parse(req.body);
+    const departureAt = payload.departureAt.toISOString();
+    const arrivalAt =
+      payload.arrivalAt?.toISOString() ?? new Date(payload.departureAt.getTime() + 45 * 60 * 1000).toISOString();
+    const now = new Date().toISOString();
+    const tripRef = firestore.collection(collections.trips).doc();
+    const routeCode = payload.routeCode.trim();
+    const vehicleCode = payload.vehicleCode.trim();
+
+    await tripRef.set({
+      id: tripRef.id,
+      routeId: routeCode,
+      routeCode,
+      routeName: payload.routeName.trim(),
+      isExpress: Boolean(payload.isExpress ?? false),
+      vehicleId: vehicleCode,
+      vehicleCode,
+      driverId: req.auth!.userId,
+      originStopCode: payload.originStopName.trim().toUpperCase().replace(/\s+/g, "-"),
+      destinationStopCode: payload.destinationStopName.trim().toUpperCase().replace(/\s+/g, "-"),
+      originStopName: payload.originStopName.trim(),
+      destinationStopName: payload.destinationStopName.trim(),
+      departureAt,
+      arrivalAt,
+      baseFare: payload.baseFare,
+      seatsAvailable: payload.seatsAvailable,
+      status: "scheduled",
+      notes: payload.notes?.trim() || null,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    res.status(201).json({
+      id: tripRef.id,
+      routeCode,
+      routeName: payload.routeName.trim(),
+      vehicleCode,
+      departureAt,
+      arrivalAt,
+      seatsAvailable: payload.seatsAvailable,
+      baseFare: payload.baseFare,
+      status: "scheduled",
+    });
+  })
+);
+
+tripsRouter.get(
+  "/my-scheduled",
+  requireAuth,
+  requireRole("DRIVER", "ADMIN"),
+  asyncHandler(async (req, res) => {
+    const tripSnaps = await firestore
+      .collection(collections.trips)
+      .where("driverId", "==", req.auth!.userId)
+      .get();
+
+    const items = tripSnaps.docs
+      .map((doc) => {
+        const trip = doc.data();
+        return {
+          id: doc.id,
+          routeCode: String(trip.routeCode ?? trip.routeId ?? "R-NA"),
+          routeName: String(trip.routeName ?? "Unknown Route"),
+          vehicleCode: String(trip.vehicleCode ?? "BUS-NA"),
+          originStopName: String(trip.originStopName ?? "Unknown Origin"),
+          destinationStopName: String(trip.destinationStopName ?? "Unknown Destination"),
+          departureAt: toIso(trip.departureAt),
+          arrivalAt: toIso(trip.arrivalAt),
+          seatsAvailable: toNumber(trip.seatsAvailable),
+          baseFare: toNumber(trip.baseFare),
+          status: String(trip.status ?? "scheduled"),
+        };
+      })
+      .filter((trip) => trip.status === "scheduled")
+      .sort((a, b) => {
+        return new Date(a.departureAt).getTime() - new Date(b.departureAt).getTime();
+      });
+
+    res.json({ items });
+  })
+);
 
 tripsRouter.get(
   "/search",

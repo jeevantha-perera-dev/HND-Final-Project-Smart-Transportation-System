@@ -1,9 +1,12 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { publishDriverLocation } from "../../services/api/tracking";
+import { DriverScheduledTrip } from "../../services/api/trips";
 
 type DriverLiveTripScreenProps = {
+  trip?: DriverScheduledTrip | null;
+  onBack?: () => void;
   onEndTrip?: () => void;
   onOpenScanner?: () => void;
   onOpenIncident?: () => void;
@@ -17,23 +20,33 @@ const QUEUE = [
 ];
 
 export default function DriverLiveTripScreen({
+  trip,
+  onBack,
   onEndTrip,
   onOpenScanner,
   onOpenIncident,
   onOpenQueueDetails,
 }: DriverLiveTripScreenProps) {
   const [syncText, setSyncText] = useState("Sync location");
+  const activeTripId = trip?.id ?? "trip-demo-402";
+  const activeVehicleCode = trip?.vehicleCode ?? "BUS-402";
+  const nextStopName = trip?.destinationStopName ?? "West End Plaza";
 
-  async function pushLocation() {
+  const routeTitle = useMemo(() => {
+    if (trip?.routeName) return trip.routeName;
+    return "Route 42A - Active";
+  }, [trip?.routeName]);
+
+  const pushLocation = useCallback(async () => {
     try {
       const jitter = Math.random() * 0.001;
       await publishDriverLocation({
-        tripId: "trip-demo-402",
-        vehicleId: "BUS-402",
+        tripId: activeTripId,
+        vehicleId: activeVehicleCode,
         latitude: 6.9271 + jitter,
         longitude: 79.8612 + jitter,
         speedKph: 55,
-        nextStopName: "West End Plaza",
+        nextStopName,
         etaMinutes: 4,
         seatsAvailable: 32,
       });
@@ -41,18 +54,21 @@ export default function DriverLiveTripScreen({
     } catch {
       setSyncText("Sync failed");
     }
-  }
+  }, [activeTripId, activeVehicleCode, nextStopName]);
 
   useEffect(() => {
     const timer = setInterval(() => void pushLocation(), 12000);
     return () => clearInterval(timer);
-  }, []);
+  }, [pushLocation]);
 
   return (
     <View style={styles.screen}>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
-          <Text style={styles.routeTitle}>Route 42A - Acti</Text>
+          <Pressable style={styles.backBtn} onPress={onBack}>
+            <Ionicons name="chevron-back" size={22} color="#EAF2FB" />
+          </Pressable>
+          <Text style={styles.routeTitle}>{routeTitle}</Text>
           <Pressable onPress={onOpenIncident}>
             <Ionicons name="warning-outline" size={22} color="#E01C44" />
           </Pressable>
@@ -86,7 +102,7 @@ export default function DriverLiveTripScreen({
                 <Ionicons name="location-outline" size={12} color="#5E9DDC" />
                 <Text style={styles.nextStopTag}>NEXT STOP</Text>
               </View>
-              <Text style={styles.nextStopName}>West End Plaza</Text>
+              <Text style={styles.nextStopName}>{nextStopName}</Text>
               <Text style={styles.nextStopEta}>Estimated Arrival: 14:42 (4 mins)</Text>
             </View>
             <View style={styles.minBadge}>
@@ -199,7 +215,8 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: "#0A111C" },
   scroll: { flex: 1 },
   content: { paddingHorizontal: 14, paddingBottom: 130 },
-  header: { height: 52, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  header: { height: 52, flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 },
+  backBtn: { width: 32, height: 32, alignItems: "center", justifyContent: "center" },
   routeTitle: { color: "#EAF2FB", fontSize: 20, fontWeight: "800" },
   mapWrap: { height: 230, borderRadius: 2, overflow: "hidden", backgroundColor: "#646C76", marginBottom: 12 },
   mapPlaceholder: { ...StyleSheet.absoluteFillObject, backgroundColor: "#6B727C" },
