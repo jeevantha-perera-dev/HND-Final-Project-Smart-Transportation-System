@@ -5,8 +5,29 @@ import { collections } from "../db/collections";
 import { firestore } from "../db/firestore";
 import { asyncHandler } from "../lib/asyncHandler";
 import { toDate, toIso, toNumber } from "../lib/firestoreUtils";
+import type { DocumentData } from "firebase-admin/firestore";
 import { requireAuth, requireRole } from "../lib/auth";
 import { HttpError } from "../lib/httpError";
+
+function tripForClient(data: DocumentData) {
+  return {
+    ...data,
+    departureAt: data.departureAt != null ? toIso(data.departureAt) : undefined,
+    arrivalAt: data.arrivalAt != null ? toIso(data.arrivalAt) : undefined,
+    completedAt: data.completedAt != null ? toIso(data.completedAt) : null,
+    createdAt: data.createdAt != null ? toIso(data.createdAt) : undefined,
+    updatedAt: data.updatedAt != null ? toIso(data.updatedAt) : undefined,
+  };
+}
+
+function ticketForClient(data: DocumentData) {
+  return {
+    id: String(data.id ?? ""),
+    bookingId: String(data.bookingId ?? data.id ?? ""),
+    qrCode: String(data.qrCode ?? ""),
+    issuedAt: data.issuedAt != null ? toIso(data.issuedAt) : undefined,
+  };
+}
 
 const seatLockSchema = z.object({
   tripId: z.string().min(1),
@@ -282,21 +303,31 @@ bookingRouter.get(
     const bookingsSnap = await firestore
       .collection(collections.bookings)
       .where("userId", "==", req.auth!.userId)
-      .orderBy("createdAt", "desc")
       .get();
 
+    const sortedDocs = [...bookingsSnap.docs].sort((a, b) => {
+      const aMs = toDate(a.data().createdAt).getTime();
+      const bMs = toDate(b.data().createdAt).getTime();
+      return bMs - aMs;
+    });
+
     const items = await Promise.all(
-      bookingsSnap.docs.map(async (doc) => {
+      sortedDocs.map(async (doc) => {
         const booking = doc.data();
         const tripSnap = await firestore.collection(collections.trips).doc(String(booking.tripId)).get();
         const ticketSnap = await firestore.collection(collections.tickets).doc(doc.id).get();
+        let trip = tripSnap.exists ? tripForClient(tripSnap.data()!) : null;
+        const snap = booking.tripSnapshot as DocumentData | undefined;
+        if (!trip && snap && typeof snap === "object") {
+          trip = tripForClient(snap);
+        }
         return {
           id: doc.id,
           ...booking,
           createdAt: toIso(booking.createdAt),
           updatedAt: toIso(booking.updatedAt),
-          trip: tripSnap.exists ? tripSnap.data() : null,
-          ticket: ticketSnap.exists ? ticketSnap.data() : null,
+          trip,
+          ticket: ticketSnap.exists ? ticketForClient(ticketSnap.data()!) : null,
         };
       })
     );

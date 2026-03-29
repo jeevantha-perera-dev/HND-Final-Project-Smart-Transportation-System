@@ -196,7 +196,16 @@ tripsRouter.get(
       if (normalizedRoute) {
         const c1 = normalizeRouteToken(code);
         const c2 = normalizeRouteToken(String(trip.routeId ?? ""));
-        if (c1 !== normalizedRoute && c2 !== normalizedRoute && !c1.includes(normalizedRoute) && !normalizedRoute.includes(c1)) {
+        const c3 = normalizeRouteToken(String(trip.shortRouteId ?? ""));
+        const shortMatches =
+          c3 && (c3 === normalizedRoute || c3.includes(normalizedRoute) || normalizedRoute.includes(c3));
+        if (
+          !shortMatches &&
+          c1 !== normalizedRoute &&
+          c2 !== normalizedRoute &&
+          !c1.includes(normalizedRoute) &&
+          !normalizedRoute.includes(c1)
+        ) {
           continue;
         }
       }
@@ -206,9 +215,11 @@ tripsRouter.get(
       if (q.from && !includesLoose(originStopName, q.from)) continue;
       if (q.to && !includesLoose(destinationStopName, q.to)) continue;
 
+      const shortRouteId = String(trip.shortRouteId ?? "").trim();
       items.push({
         id: doc.id,
         routeId: code || "R-NA",
+        shortRouteId: shortRouteId || undefined,
         routeName: String(trip.routeName ?? "Unknown Route"),
         express: Boolean(trip.isExpress ?? false),
         vehicleCode: String(trip.vehicleCode ?? "BUS-NA"),
@@ -557,10 +568,12 @@ tripsRouter.get(
       }
     }
 
+    const shortRouteId = String(trip.shortRouteId ?? "").trim();
     res.json({
       id: tripId,
       routeName: String(trip.routeName ?? "Unknown Route"),
       routeCode: String(trip.routeCode ?? trip.routeId ?? ""),
+      shortRouteId: shortRouteId || undefined,
       vehicleCode: String(trip.vehicleCode ?? "BUS-NA"),
       seatsAvailable: toNumber(trip.seatsAvailable),
       baseFare: toNumber(trip.baseFare),

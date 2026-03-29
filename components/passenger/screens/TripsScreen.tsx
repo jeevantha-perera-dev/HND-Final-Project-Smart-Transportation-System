@@ -1,17 +1,18 @@
-import React, { useEffect, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import React, { useCallback, useState } from "react";
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { CompositeScreenProps, useFocusEffect } from "@react-navigation/native";
 import { CompletedTripCard, ScreenCard, SectionHeader, TabSwitcher, TripCard } from "../ui";
 import { colors, spacing } from "../theme";
 import { PassengerRootStackParamList, PassengerTabsParamList } from "../types";
 import FilterModal, { TripFilters } from "../FilterModal";
 import FilterChip from "../FilterChip";
-import { CompositeScreenProps } from "@react-navigation/native";
 import { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { getMyBookings } from "../../../services/api/booking";
+import { loadPassengerBookingsForTripsScreen } from "../../../services/firebase/passengerBookings";
+import type { MyBookingItem } from "../../../services/api/booking";
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<PassengerTabsParamList, "Trips">,
@@ -20,66 +21,11 @@ type Props = CompositeScreenProps<
 
 const tabs = ["Upcoming", "Completed"] as const;
 type TripsTab = (typeof tabs)[number];
-const upcomingTrips = [
-  {
-    key: "up-1",
-    route: "R-104",
-    status: "Live Now" as const,
-    from: "Central Station",
-    to: "Greenwood Park",
-    date: "Oct 24, 2023",
-    time: "08:30 AM",
-    seat: "Seat 12A",
-    bus: "BUS-442",
-    slot: "morning" as const,
-    dayLabel: "Today" as const,
-  },
-  {
-    key: "up-2",
-    route: "R-202",
-    status: "Upcoming" as const,
-    from: "West Terminal",
-    to: "Airport Link",
-    date: "Oct 26, 2023",
-    time: "02:15 PM",
-    seat: "Seat 04B",
-    bus: "BUS-118",
-    slot: "afternoon" as const,
-    dayLabel: "Tomorrow" as const,
-  },
-];
 
-const completedTrips = [
-  {
-    key: "done-1",
-    route: "R-304",
-    from: "Central Station",
-    to: "Greenwood Park",
-    date: "Oct 22, 2023",
-    time: "08:30 AM",
-    seat: "12A",
-    bus: "BUS-442",
-    slot: "morning" as const,
-    dayLabel: "Custom" as const,
-  },
-  {
-    key: "done-2",
-    route: "R-203",
-    from: "West Terminal",
-    to: "Airport Link",
-    date: "Oct 20, 2023",
-    time: "02:15 PM",
-    seat: "04B",
-    bus: "BUS-118",
-    slot: "afternoon" as const,
-    dayLabel: "Custom" as const,
-  },
-];
-
-type DynamicTrip = {
+type UpcomingRow = {
   key: string;
   route: string;
-  status: "Live Now" | "Upcoming";
+  status: "Live Now" | "Upcoming" | "In Progress";
   from: string;
   to: string;
   date: string;
@@ -90,10 +36,132 @@ type DynamicTrip = {
   dayLabel: "Today" | "Tomorrow" | "Custom";
 };
 
+type CompletedRow = {
+  key: string;
+  route: string;
+  from: string;
+  to: string;
+  date: string;
+  time: string;
+  seat: string;
+  bus: string;
+  slot: "morning" | "afternoon";
+  dayLabel: "Today" | "Tomorrow" | "Custom";
+};
+
+function dayLabelFromDate(d: Date): "Today" | "Tomorrow" | "Custom" {
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const startOfTrip = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const diffDays = Math.round((startOfTrip - startOfToday) / 86400000);
+  if (diffDays === 0) return "Today";
+  if (diffDays === 1) return "Tomorrow";
+  return "Custom";
+}
+
+function formatFromIso(iso: string | undefined): {
+  date: string;
+  time: string;
+  slot: "morning" | "afternoon";
+  dayLabel: "Today" | "Tomorrow" | "Custom";
+} {
+  if (!iso) {
+    return { date: "—", time: "—", slot: "morning", dayLabel: "Custom" };
+  }
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) {
+    return { date: "—", time: "—", slot: "morning", dayLabel: "Custom" };
+  }
+  const hour = d.getHours();
+  return {
+    date: d.toLocaleDateString(),
+    time: d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    slot: hour < 12 ? "morning" : "afternoon",
+    dayLabel: dayLabelFromDate(d),
+  };
+}
+
+function formatSeat(seatId: string | undefined): string {
+  if (!seatId) return "—";
+  const s = String(seatId);
+  return s.toLowerCase().includes("seat") ? s : `Seat ${s}`;
+}
+
+function cardStatusForTrip(trip: MyBookingItem["trip"], departureIso: string | undefined): UpcomingRow["status"] {
+  const st = String(trip?.status ?? "").toLowerCase();
+  if (st === "scheduled" && departureIso) {
+    const dep = new Date(departureIso).getTime();
+    const now = Date.now();
+    if (Number.isFinite(dep) && now >= dep - 30 * 60 * 1000 && now <= dep + 6 * 60 * 60 * 1000) {
+      return "Live Now";
+    }
+  }
+  return "Upcoming";
+}
+
+function splitBookings(items: MyBookingItem[]): { upcoming: UpcomingRow[]; completed: CompletedRow[] } {
+  const upcoming: UpcomingRow[] = [];
+  const completed: CompletedRow[] = [];
+
+  for (const item of items) {
+    const trip = item.trip ?? item.tripSnapshot ?? null;
+    const tripStatusRaw = String(trip?.status ?? "").toLowerCase().trim();
+    const tripStatus = tripStatusRaw === "complete" ? "completed" : tripStatusRaw;
+
+    if (tripStatus === "cancelled") continue;
+
+    const route = String(trip?.routeCode ?? trip?.routeId ?? "—");
+    const from = String(trip?.originStopName ?? "—");
+    const to = String(trip?.destinationStopName ?? trip?.routeName ?? "—");
+    const bus = String(trip?.vehicleCode ?? trip?.vehicleId ?? "—");
+    const seat = formatSeat(item.seatId);
+
+    if (tripStatus === "completed") {
+      const whenIso = trip?.completedAt ?? trip?.arrivalAt ?? trip?.departureAt ?? item.updatedAt ?? item.createdAt;
+      const { date, time, slot, dayLabel } = formatFromIso(whenIso);
+      completed.push({
+        key: item.id,
+        route,
+        from,
+        to,
+        date,
+        time,
+        seat,
+        bus,
+        slot,
+        dayLabel,
+      });
+      continue;
+    }
+
+    const whenIso = trip?.departureAt ?? item.createdAt;
+    const { date, time, slot, dayLabel } = formatFromIso(whenIso);
+    upcoming.push({
+      key: item.id,
+      route,
+      status: cardStatusForTrip(trip, trip?.departureAt),
+      from,
+      to,
+      date,
+      time,
+      seat,
+      bus,
+      slot,
+      dayLabel,
+    });
+  }
+
+  return { upcoming, completed };
+}
+
 export default function TripsScreen({ navigation }: Props) {
   const [activeTab, setActiveTab] = useState<TripsTab>("Upcoming");
-  const [apiUpcomingTrips, setApiUpcomingTrips] = useState<DynamicTrip[]>([]);
-  const [apiCompletedTrips, setApiCompletedTrips] = useState<typeof completedTrips>([]);
+  const [upcomingTrips, setUpcomingTrips] = useState<UpcomingRow[]>([]);
+  const [completedTrips, setCompletedTrips] = useState<CompletedRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
   const defaultFilters: TripFilters = {
     date: "All",
     busStatus: "All",
@@ -104,54 +172,46 @@ export default function TripsScreen({ navigation }: Props) {
   const [draftFilters, setDraftFilters] = useState<TripFilters>(defaultFilters);
   const [appliedFilters, setAppliedFilters] = useState<TripFilters>(defaultFilters);
 
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        const res = await getMyBookings();
-        if (!mounted) return;
-        const mapped = res.items.map((item) => {
-          const createdAt = new Date(item.createdAt);
-          const routeCode = item.trip?.route?.code ?? "R-NA";
-          const routeName = item.trip?.route?.name ?? "Transit Route";
-          return {
-            key: item.id,
-            route: routeCode,
-            status: "Upcoming" as const,
-            from: "Central Terminal",
-            to: routeName,
-            date: createdAt.toLocaleDateString(),
-            time: createdAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-            seat: item.seatId ?? "Seat -",
-            bus: item.trip?.id ?? "BUS-NA",
-            slot: createdAt.getHours() < 12 ? ("morning" as const) : ("afternoon" as const),
-            dayLabel: "Custom" as const,
-          };
-        });
-        setApiUpcomingTrips(mapped);
-        setApiCompletedTrips([]);
-      } catch {
-        // fall back to static UI data
-      }
-    })();
-    return () => {
-      mounted = false;
-    };
+  const loadBookings = useCallback(async (mode: "full" | "refresh" = "full") => {
+    if (mode === "full") {
+      setLoading(true);
+    } else {
+      setRefreshing(true);
+    }
+    setLoadError(null);
+    try {
+      const items = await loadPassengerBookingsForTripsScreen();
+      const { upcoming, completed } = splitBookings(items);
+      setUpcomingTrips(upcoming);
+      setCompletedTrips(completed);
+    } catch {
+      setUpcomingTrips([]);
+      setCompletedTrips([]);
+      setLoadError("Could not load your trips. Pull to refresh or try again later.");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   }, []);
 
-  const goToQr = () => {
-    navigation.navigate("QRTicket");
+  useFocusEffect(
+    useCallback(() => {
+      loadBookings();
+    }, [loadBookings])
+  );
+
+  const goToQr = (bookingId: string) => {
+    navigation.navigate("QRTicket", { bookingId });
   };
 
   const goToLiveTracking = () => {
     navigation.navigate("LiveTracking");
   };
 
-  const getTimeLabel = (slot: "morning" | "afternoon") =>
-    slot === "morning" ? "Morning" : "Afternoon";
+  const getTimeLabel = (slot: "morning" | "afternoon") => (slot === "morning" ? "Morning" : "Afternoon");
 
   const filterLogic = (trip: {
-    status?: "Live Now" | "Upcoming";
+    status?: "Live Now" | "Upcoming" | "In Progress";
     route: string;
     slot: "morning" | "afternoon";
     dayLabel: "Today" | "Tomorrow" | "Custom";
@@ -172,25 +232,15 @@ export default function TripsScreen({ navigation }: Props) {
     if (appliedFilters.route !== "All" && trip.route !== appliedFilters.route) {
       return false;
     }
-    if (
-      appliedFilters.timeRange !== "All" &&
-      getTimeLabel(trip.slot) !== appliedFilters.timeRange
-    ) {
+    if (appliedFilters.timeRange !== "All" && getTimeLabel(trip.slot) !== appliedFilters.timeRange) {
       return false;
     }
     return true;
   };
 
-  const sourceUpcomingTrips = apiUpcomingTrips.length > 0 ? apiUpcomingTrips : upcomingTrips;
-  const sourceCompletedTrips = apiCompletedTrips.length > 0 ? apiCompletedTrips : completedTrips;
+  const filteredUpcomingTrips = upcomingTrips.filter((trip) => filterLogic({ ...trip, isCompleted: false }));
 
-  const filteredUpcomingTrips = sourceUpcomingTrips.filter((trip) =>
-    filterLogic({ ...trip, isCompleted: false }),
-  );
-
-  const filteredCompletedTrips = sourceCompletedTrips.filter((trip) =>
-    filterLogic({ ...trip, isCompleted: true }),
-  );
+  const filteredCompletedTrips = completedTrips.filter((trip) => filterLogic({ ...trip, isCompleted: true }));
 
   const activeFilterChips = [
     appliedFilters.date !== "All" ? { key: "date", label: `Date: ${appliedFilters.date}` } : null,
@@ -202,7 +252,18 @@ export default function TripsScreen({ navigation }: Props) {
   return (
     <SafeAreaView style={styles.safe}>
       <LinearGradient colors={[colors.bgTop, colors.bgBottom]} style={styles.gradient}>
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => loadBookings("refresh")}
+              tintColor="#74B5F7"
+              colors={["#74B5F7"]}
+            />
+          }
+        >
           <View style={styles.headerRow}>
             <Text style={styles.title}>My Trips</Text>
             <Ionicons name="funnel-outline" size={18} color="#BBD1EB" />
@@ -216,6 +277,9 @@ export default function TripsScreen({ navigation }: Props) {
             }}
           />
 
+          {loadError ? <Text style={styles.errorBanner}>{loadError}</Text> : null}
+          {loading ? <Text style={styles.loadingText}>Loading trips…</Text> : null}
+
           {activeFilterChips.length > 0 ? (
             <View style={styles.activeChipsRow}>
               {activeFilterChips.map((chip) => (
@@ -224,9 +288,7 @@ export default function TripsScreen({ navigation }: Props) {
                   label={chip.label}
                   active
                   removable
-                  onRemove={() =>
-                    setAppliedFilters((prev) => ({ ...prev, [chip.key]: "All" }))
-                  }
+                  onRemove={() => setAppliedFilters((prev) => ({ ...prev, [chip.key]: "All" }))}
                 />
               ))}
             </View>
@@ -242,6 +304,9 @@ export default function TripsScreen({ navigation }: Props) {
                   setModalVisible(true);
                 }}
               />
+              {!loading && filteredUpcomingTrips.length === 0 ? (
+                <Text style={styles.emptyText}>No upcoming trips. Book a journey from Home to see it here.</Text>
+              ) : null}
               {filteredUpcomingTrips.map((trip) => (
                 <TripCard
                   key={trip.key}
@@ -253,11 +318,36 @@ export default function TripsScreen({ navigation }: Props) {
                   time={trip.time}
                   seat={trip.seat}
                   bus={trip.bus}
-                  onViewQr={goToQr}
+                  onViewQr={() => goToQr(trip.key)}
                 />
               ))}
+              {!loading && filteredCompletedTrips.length > 0 ? (
+                <>
+                  <SectionHeader
+                    title="RECENTLY COMPLETED"
+                    actionText="See all"
+                    onActionPress={() => setActiveTab("Completed")}
+                  />
+                  {filteredCompletedTrips.slice(0, 3).map((trip) => (
+                    <CompletedTripCard
+                      key={`recent-${trip.key}`}
+                      route={trip.route}
+                      from={trip.from}
+                      to={trip.to}
+                      date={trip.date}
+                      time={trip.time}
+                      seat={trip.seat}
+                      bus={trip.bus}
+                      onRate={() => navigation.navigate("RateTrip")}
+                    />
+                  ))}
+                </>
+              ) : null}
               <ScreenCard>
-                <Pressable style={({ pressed }) => [styles.liveTrackingRow, pressed && styles.pressed]} onPress={goToLiveTracking}>
+                <Pressable
+                  style={({ pressed }) => [styles.liveTrackingRow, pressed && styles.pressed]}
+                  onPress={goToLiveTracking}
+                >
                   <View style={styles.liveIcon}>
                     <Ionicons name="navigate-outline" size={15} color="#76B1FF" />
                   </View>
@@ -281,6 +371,9 @@ export default function TripsScreen({ navigation }: Props) {
                   setModalVisible(true);
                 }}
               />
+              {!loading && filteredCompletedTrips.length === 0 ? (
+                <Text style={styles.emptyText}>No completed trips yet.</Text>
+              ) : null}
               {filteredCompletedTrips.map((trip) => (
                 <CompletedTripCard
                   key={trip.key}
@@ -323,6 +416,15 @@ const styles = StyleSheet.create({
   content: { padding: spacing.page, paddingBottom: 24 },
   headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 14 },
   title: { color: colors.textPrimary, fontSize: 28, fontWeight: "800" },
+  errorBanner: {
+    color: "#FFB4B4",
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: 12,
+    fontWeight: "600",
+  },
+  loadingText: { color: "#A6B8CF", fontSize: 14, marginBottom: 12 },
+  emptyText: { color: "#8FA4BC", fontSize: 14, lineHeight: 20, marginBottom: 16 },
   liveTrackingRow: { flexDirection: "row", gap: 10 },
   liveIcon: {
     width: 26,

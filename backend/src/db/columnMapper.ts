@@ -2,6 +2,8 @@ import { FieldValue } from "firebase-admin/firestore";
 
 export type RouteDocument = {
   routeId: string;
+  /** Optional compact code for passenger UI (e.g. C06); full routeId stays canonical for fares/API. */
+  shortRouteId: string;
   routeName: string;
   origin: string;
   destination: string;
@@ -97,6 +99,16 @@ function inferDurationMinutes(rawDuration: string, departureTime: string, arriva
   return delta > 0 ? delta : 0;
 }
 
+function resolveIsExpress(
+  get: ReturnType<typeof createGetters>["get"],
+  getBool: ReturnType<typeof createGetters>["getBool"]
+): boolean {
+  const explicit = get(["IsExpress", "ExpressYN", "Express (Y/N)"]).trim().toLowerCase();
+  if (explicit === "no" || explicit === "n" || explicit === "false" || explicit === "0") return false;
+  if (explicit === "yes" || explicit === "y" || explicit === "true" || explicit === "1") return true;
+  return getBool(["Express", "BusType", "Type", "Route Number"], ["express", "ex"]);
+}
+
 export function mapRouteRow(row: Record<string, string>, rowIndex: number): RouteDocument {
   const { get, getNum, getBool, getArray } = createGetters(row);
 
@@ -107,6 +119,7 @@ export function mapRouteRow(row: Record<string, string>, rowIndex: number): Rout
 
   return {
     routeId: get(["RouteNo", "Route_No", "RouteID", "route_number", "Route", "RouteNumber", "Route Number"]),
+    shortRouteId: get(["ShortRouteId", "Short ID", "ShortID", "Display ID", "Route Short"]),
     routeName: get(["RouteName", "Route_Name", "Description", "Name", "Title", "Route Name"]),
     origin: get(["Origin", "From", "StartPoint", "Start", "BoardingPoint", "Source"]),
     destination: get(["Destination", "To", "EndPoint", "End", "AlightingPoint", "Target"]),
@@ -115,7 +128,7 @@ export function mapRouteRow(row: Record<string, string>, rowIndex: number): Rout
     frequency: get(["Frequency", "FrequencyMins", "Interval", "FreqMins"]),
     busType,
     operatorName: get(["Operator", "OperatorName", "Company", "ServiceProvider", "Bus Operator"]),
-    isExpress: getBool(["Express", "IsExpress", "BusType", "Type", "Route Number"], ["express", "ex"]),
+    isExpress: resolveIsExpress(get, getBool),
     isAC: getBool(["AC", "IsAC", "AirConditioned", "BusType", "Type"], ["ac", "air"]),
     distanceKm: getNum(["Distance", "DistanceKm", "Km", "KM", "TotalDistance", "Distance (km)"]),
     durationMinutes: inferDurationMinutes(rawDuration, departureTime, arrivalTime),

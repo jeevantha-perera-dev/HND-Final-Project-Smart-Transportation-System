@@ -1,20 +1,16 @@
-import React from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import React, { useCallback, useEffect, useState } from "react";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { NavigationProp } from "@react-navigation/native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { searchTrips } from "../../../services/api/trips";
+import { formatArrivingHeadline } from "../../../utils/eta";
+import { passengerRouteCode, passengerRouteDisplayId } from "../../../utils/busDisplay";
 import { PassengerHomeStackParamList, PassengerRootStackParamList } from "../types";
 
 type Props = NativeStackScreenProps<PassengerHomeStackParamList, "HomeMain">;
-
-function navigateRootLiveTracking(navigation: Props["navigation"]) {
-  const root = navigation.getParent()?.getParent() as
-    | NavigationProp<PassengerRootStackParamList>
-    | undefined;
-  root?.navigate("LiveTracking");
-}
 
 function navigateToAlerts(navigation: Props["navigation"]) {
   const root = navigation.getParent()?.getParent() as
@@ -33,10 +29,19 @@ function navigateToWalletAddMoney(navigation: Props["navigation"]) {
   });
 }
 
-const nearBuses = [
-  { id: "402", title: "402 Express", destination: "to Central Station", arriving: "4 mins", seats: "12 seats available", crowd: "Low Crowd" },
-  { id: "510", title: "Blue Line", destination: "to North Hub", arriving: "9 mins", seats: "5 seats available", crowd: "Medium" },
-];
+type HomeNearTrip = {
+  id: string;
+  tripId: string;
+  routeId: string;
+  shortRouteId?: string;
+  routeName: string;
+  title: string;
+  destination: string;
+  arriving: string;
+  seats: string;
+  crowd: string;
+  priceLkr: number;
+};
 
 const insights = [
   {
@@ -65,6 +70,41 @@ const quickActions = [
 ];
 
 export default function PassengerHomeScreen({ navigation }: Props) {
+  const [nearBuses, setNearBuses] = useState<HomeNearTrip[]>([]);
+  const [nearLoading, setNearLoading] = useState(true);
+
+  const loadNearTrips = useCallback(async () => {
+    setNearLoading(true);
+    try {
+      const { items } = await searchTrips({ limit: 3, minSeats: 1 });
+      setNearBuses(
+        items.map((t) => ({
+          id: t.id,
+          tripId: t.id,
+          routeId: t.routeId,
+          shortRouteId: t.shortRouteId,
+          routeName: t.routeName,
+          title: String(t.routeId || "").trim()
+            ? passengerRouteCode(String(t.routeId), t.shortRouteId)
+            : t.routeName,
+          destination: `→ ${t.destinationStopName?.trim() || "Destination"}`,
+          arriving: formatArrivingHeadline(t.arrivalMins),
+          seats: `${t.seatsLeft} seats available`,
+          crowd: t.seatsLeft >= 26 ? "Low Crowd" : t.seatsLeft >= 13 ? "Medium" : "High",
+          priceLkr: t.price,
+        }))
+      );
+    } catch {
+      setNearBuses([]);
+    } finally {
+      setNearLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadNearTrips();
+  }, [loadNearTrips]);
+
   const onQuickActionPress = (id: string) => {
     if (id === "nearest") navigation.navigate("NearestStops");
     if (id === "favorites") navigation.navigate("Favorites");
@@ -110,32 +150,56 @@ export default function PassengerHomeScreen({ navigation }: Props) {
             </View>
 
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.busRow}>
-              {nearBuses.map((bus) => (
-                <Pressable key={bus.id} style={styles.busCard} onPress={() => navigateRootLiveTracking(navigation)}>
-                  <View style={styles.busTop}>
-                    <View style={styles.busBadge}>
-                      <Ionicons name="bus-outline" size={12} color="#74B5F7" />
-                    </View>
-                    <Text style={styles.busTitle}>{bus.title}</Text>
-                  </View>
-                  <Text style={styles.busDestination}>{bus.destination}</Text>
-                  <View style={styles.busDivider} />
-                  <View style={styles.busMetaRow}>
-                    <View>
-                      <Text style={styles.metaLabel}>ARRIVING IN</Text>
-                      <Text style={styles.metaValue}>{bus.arriving}</Text>
-                    </View>
-                    <View>
-                      <Text style={styles.metaLabel}>STATUS</Text>
-                      <Text style={styles.metaValue}>{bus.crowd}</Text>
-                    </View>
-                  </View>
-                  <View style={styles.seatPill}>
-                    <Ionicons name="people-outline" size={13} color="#B4CBE1" />
-                    <Text style={styles.seatText}>{bus.seats}</Text>
-                  </View>
+              {nearLoading ? (
+                <View style={styles.busCard}>
+                  <ActivityIndicator color="#74B5F7" style={{ marginVertical: 40 }} />
+                  <Text style={styles.seatText}>Loading trips from server…</Text>
+                </View>
+              ) : null}
+              {!nearLoading && nearBuses.length === 0 ? (
+                <Pressable style={styles.busCard} onPress={() => navigation.navigate("HomeBusesList")}>
+                  <Text style={styles.busTitle}>No trips yet</Text>
+                  <Text style={styles.busDestination}>Open “View All” when drivers schedule trips in Firebase.</Text>
                 </Pressable>
-              ))}
+              ) : null}
+              {!nearLoading &&
+                nearBuses.map((bus) => (
+                  <Pressable
+                    key={bus.id}
+                    style={styles.busCard}
+                    onPress={() =>
+                      navigation.navigate("SeatSelection", {
+                        tripId: bus.tripId,
+                        busId: passengerRouteDisplayId(bus.routeId, bus.shortRouteId),
+                        routeName: bus.routeName,
+                        price: `LKR ${bus.priceLkr.toFixed(0)}`,
+                      })
+                    }
+                  >
+                    <View style={styles.busTop}>
+                      <View style={styles.busBadge}>
+                        <Ionicons name="bus-outline" size={12} color="#74B5F7" />
+                      </View>
+                      <Text style={styles.busTitle}>{bus.title}</Text>
+                    </View>
+                    <Text style={styles.busDestination}>{bus.destination}</Text>
+                    <View style={styles.busDivider} />
+                    <View style={styles.busMetaRow}>
+                      <View>
+                        <Text style={styles.metaLabel}>DEPARTS IN</Text>
+                        <Text style={styles.metaValue}>{bus.arriving}</Text>
+                      </View>
+                      <View>
+                        <Text style={styles.metaLabel}>STATUS</Text>
+                        <Text style={styles.metaValue}>{bus.crowd}</Text>
+                      </View>
+                    </View>
+                    <View style={styles.seatPill}>
+                      <Ionicons name="people-outline" size={13} color="#B4CBE1" />
+                      <Text style={styles.seatText}>{bus.seats}</Text>
+                    </View>
+                  </Pressable>
+                ))}
             </ScrollView>
           </View>
 

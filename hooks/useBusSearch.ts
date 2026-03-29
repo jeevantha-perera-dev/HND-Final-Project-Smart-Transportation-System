@@ -10,22 +10,27 @@ export const useBusSearch = () => {
   const [retrying, setRetrying] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const search = async (override?: { from?: Place | null; to?: Place | null }) => {
+  const search = async (override?: {
+    from?: Place | null;
+    to?: Place | null;
+    travelDateKey?: string | null;
+  }) => {
     const origin = override?.from ?? fromPlace;
     const dest = override?.to ?? toPlace;
     if (!origin || !dest) return { data: [] as BusResult[], error: "Please select both origin and destination." };
+    const dateOpts = { travelDateKey: override?.travelDateKey };
     setLoading(true);
     setRetrying(false);
     setError(null);
     try {
-      const data = await searchBusRoutes(origin, dest);
+      const data = await searchBusRoutes(origin, dest, dateOpts);
       setResults(data);
       return { data, error: null as string | null };
     } catch {
       setRetrying(true);
       await new Promise((resolve) => setTimeout(resolve, 1500));
       try {
-        const retryData = await searchBusRoutes(origin, dest);
+        const retryData = await searchBusRoutes(origin, dest, dateOpts);
         setResults(retryData);
         return { data: retryData, error: null as string | null };
       } catch {

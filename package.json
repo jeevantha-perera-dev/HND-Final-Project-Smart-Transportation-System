@@ -11,6 +11,7 @@
     "lint": "expo lint",
     "firebase:emulators": "firebase emulators:start --config firebase.json --only \"auth,firestore,storage\"",
     "firebase:seed": "npm --prefix backend run seed",
+    "firebase:seed:users": "npm --prefix backend run seed:users",
     "backend:dev": "npm --prefix backend run dev"
   },
   "dependencies": {
@@ -45,9 +46,11 @@
     "react-native": "0.81.5",
     "react-native-gesture-handler": "~2.28.0",
     "react-native-maps": "1.20.1",
+    "react-native-qrcode-svg": "^6.3.21",
     "react-native-reanimated": "~4.1.1",
     "react-native-safe-area-context": "~5.6.0",
     "react-native-screens": "~4.16.0",
+    "react-native-svg": "15.12.1",
     "react-native-vector-icons": "^10.3.0",
     "react-native-web": "~0.21.0",
     "react-native-worklets": "0.5.1"

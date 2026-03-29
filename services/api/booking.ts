@@ -16,8 +16,46 @@ export async function confirmBooking(bookingId: string) {
   });
 }
 
+/** Trip snapshot from GET /bookings/me (dates as ISO strings). */
+export type MyBookingTrip = {
+  id?: string;
+  routeId?: string;
+  routeCode?: string;
+  routeName?: string;
+  originStopName?: string;
+  destinationStopName?: string;
+  departureAt?: string;
+  arrivalAt?: string;
+  completedAt?: string | null;
+  status?: string;
+  vehicleId?: string;
+  vehicleCode?: string;
+} | null;
+
+export type MyBookingTicket = {
+  id?: string;
+  bookingId?: string;
+  qrCode?: string;
+  issuedAt?: string;
+};
+
+export type MyBookingItem = {
+  id: string;
+  userId?: string;
+  tripId?: string;
+  seatId?: string;
+  status: string;
+  totalAmount?: number;
+  createdAt: string;
+  updatedAt?: string;
+  trip: MyBookingTrip;
+  /** Denormalized trip (e.g. seed / offline); used when live trips/{id} is missing or unreadable. */
+  tripSnapshot?: MyBookingTrip;
+  ticket?: MyBookingTicket | null;
+};
+
 export async function getMyBookings() {
-  return apiRequest<{ items: any[] }>("/bookings/me", {
+  return apiRequest<{ items: MyBookingItem[] }>("/bookings/me", {
     auth: true,
   });
 }

@@ -1,10 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
-import { CommonActions } from "@react-navigation/native";
+import { CommonActions, NavigationProp } from "@react-navigation/native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { PassengerHomeStackParamList } from "../types";
+import { PassengerHomeStackParamList, PassengerRootStackParamList } from "../types";
 import { confirmBooking, seatLock } from "../../../services/api/booking";
 import { getWallet } from "../../../services/api/wallet";
 
@@ -17,9 +17,21 @@ const TEXT = "#FFFFFF";
 const MUTED = "#8E8E93";
 const GREEN = "#34C759";
 
+function formatLkr(amount: number) {
+  return `LKR ${amount.toFixed(2)}`;
+}
+
 type PaymentId = "visa" | "apple" | "netbank";
 
 type Props = NativeStackScreenProps<PassengerHomeStackParamList, "Checkout">;
+
+function navigateToMyWallet(navigation: Props["navigation"]) {
+  const root = navigation.getParent()?.getParent() as NavigationProp<PassengerRootStackParamList> | undefined;
+  root?.navigate("MainTabs", {
+    screen: "Wallet",
+    params: { screen: "WalletMain" },
+  });
+}
 
 export default function CheckoutScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
@@ -54,13 +66,17 @@ export default function CheckoutScreen({ navigation, route }: Props) {
     };
   }, [baseFare]);
 
-  const [payment, setPayment] = useState<PaymentId>("visa");
+  const [payment, setPayment] = useState<PaymentId | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  function selectPayment(id: PaymentId) {
+    setPayment((current) => (current === id ? null : id));
+  }
   const [error, setError] = useState<string | null>(null);
   const [walletBalance, setWalletBalance] = useState(0);
   const [walletLoaded, setWalletLoaded] = useState(false);
 
-  const totalStr = `$${breakdown.total.toFixed(2)}`;
+  const totalStr = formatLkr(breakdown.total);
   useEffect(() => {
     (async () => {
       try {
@@ -86,7 +102,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
         amount: breakdown.total,
       });
       await confirmBooking(lock.bookingId);
-      const tabNav = navigation.getParent();
+      const root = navigation.getParent()?.getParent() as NavigationProp<PassengerRootStackParamList> | undefined;
       navigation.dispatch(
         CommonActions.reset({
           index: 0,
@@ -94,7 +110,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
         })
       );
       setTimeout(() => {
-        tabNav?.navigate("Wallet" as never);
+        root?.navigate("QRTicket", { bookingId: lock.bookingId });
       }, 0);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Payment failed");
@@ -147,12 +163,12 @@ export default function CheckoutScreen({ navigation, route }: Props) {
               <Ionicons name="ticket-outline" size={20} color={PRIMARY} />
               <Text style={styles.fareHeaderTitle}>Fare Breakdown</Text>
             </View>
-            <FareLine label="Adult Base Fare (x1)" amount={`$${breakdown.adultBase.toFixed(2)}`} />
-            <FareLine label="Booking Fee" amount={`$${breakdown.bookingFee.toFixed(2)}`} />
-            <FareLine label="Service Tax (5%)" amount={`$${breakdown.tax.toFixed(2)}`} />
+            <FareLine label="Adult Base Fare (x1)" amount={formatLkr(breakdown.adultBase)} />
+            <FareLine label="Booking Fee" amount={formatLkr(breakdown.bookingFee)} />
+            <FareLine label="Service Tax (5%)" amount={formatLkr(breakdown.tax)} />
             <FareLine
               label="Loyalty Discount"
-              amount={`$${breakdown.loyaltyDiscount.toFixed(2)}`}
+              amount={formatLkr(breakdown.loyaltyDiscount)}
               accentGreen
             />
             <View style={styles.fareDivider} />
@@ -162,14 +178,19 @@ export default function CheckoutScreen({ navigation, route }: Props) {
             </View>
           </View>
 
-          <Pressable style={styles.walletCard}>
+          <Pressable
+            style={styles.walletCard}
+            onPress={() => navigateToMyWallet(navigation)}
+            accessibilityRole="button"
+            accessibilityLabel="Open My Wallet"
+          >
             <View style={styles.walletIconWrap}>
               <Ionicons name="wallet" size={22} color={PRIMARY} />
             </View>
             <View style={styles.walletCenter}>
               <Text style={styles.walletLabel}>TRANSITFLOW WALLET</Text>
               <Text style={styles.walletBalance}>
-                {walletLoaded ? `$${walletBalance.toFixed(2)}` : "Loading..."}
+                {walletLoaded ? formatLkr(walletBalance) : "Loading..."}
               </Text>
             </View>
             <View style={styles.walletRight}>
@@ -181,24 +202,25 @@ export default function CheckoutScreen({ navigation, route }: Props) {
           </Pressable>
 
           <Text style={styles.sectionTitle}>PAYMENT METHODS</Text>
+          <Text style={styles.paymentHint}>Optional — choose one method, or leave unset to pay with your wallet.</Text>
 
           <PaymentOption
             selected={payment === "visa"}
-            onSelect={() => setPayment("visa")}
+            onSelect={() => selectPayment("visa")}
             icon="card-outline"
             title="Visa Classic"
             subtitle="•••• 4242"
           />
           <PaymentOption
             selected={payment === "apple"}
-            onSelect={() => setPayment("apple")}
+            onSelect={() => selectPayment("apple")}
             icon="phone-portrait-outline"
             title="Apple Pay"
             subtitle="Express checkout enabled"
           />
           <PaymentOption
             selected={payment === "netbank"}
-            onSelect={() => setPayment("netbank")}
+            onSelect={() => selectPayment("netbank")}
             icon="business-outline"
             title="Net Banking"
             subtitle="All major banks supported"
@@ -395,7 +417,13 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "800",
     letterSpacing: 0.8,
-    marginBottom: 10,
+    marginBottom: 6,
+  },
+  paymentHint: {
+    color: MUTED,
+    fontSize: 12,
+    lineHeight: 17,
+    marginBottom: 12,
   },
   payCard: {
     flexDirection: "row",

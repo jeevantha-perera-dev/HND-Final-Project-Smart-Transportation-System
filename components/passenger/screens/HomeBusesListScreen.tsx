@@ -6,6 +6,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { PassengerHomeStackParamList } from "../types";
 import { searchTrips, type TripSearchItem } from "../../../services/api/trips";
 import { formatArrivingHeadline } from "../../../utils/eta";
+import { passengerRouteDisplayId, passengerRouteCode } from "../../../utils/busDisplay";
 
 type Props = NativeStackScreenProps<PassengerHomeStackParamList, "HomeBusesList">;
 
@@ -65,7 +66,9 @@ export default function HomeBusesListScreen({ navigation }: Props) {
           items.map((bus) => (
             <View key={bus.id} style={styles.card}>
               <View style={styles.cardTop}>
-                <Text style={styles.route}>{`${bus.routeId} · ${bus.routeName}`}</Text>
+                <Text style={styles.route}>
+                  {`${passengerRouteCode(bus.routeId, bus.shortRouteId)} · ${bus.routeName}`}
+                </Text>
                 <Text style={styles.eta}>{formatArrivingHeadline(bus.arrivalMins)}</Text>
               </View>
               <Text style={styles.meta}>{crowdLabel(bus.seatsLeft)}</Text>
@@ -75,7 +78,7 @@ export default function HomeBusesListScreen({ navigation }: Props) {
                 onPress={() =>
                   navigation.navigate("SeatSelection", {
                     tripId: bus.id,
-                    busId: `R-${bus.routeId}`,
+                    busId: passengerRouteDisplayId(bus.routeId, bus.shortRouteId),
                     routeName: bus.routeName,
                     price: `LKR ${bus.price.toFixed(0)}`,
                   })

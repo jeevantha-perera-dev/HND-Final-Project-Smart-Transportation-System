@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { FlatList, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, FlatList, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
@@ -11,7 +11,9 @@ import { colors } from "../theme";
 import { reverseGeocode } from "../../../services/api/places";
 import LocationAutocomplete from "../../LocationAutocomplete";
 import { useBusSearch } from "../../../hooks/useBusSearch";
+import { listRoutes, type CatalogRoute } from "../../../services/api/routes";
 import { Place } from "../../../types/bus";
+import { passengerRouteCode } from "../../../utils/busDisplay";
 
 type Props = NativeStackScreenProps<PassengerHomeStackParamList, "RouteSearch">;
 
@@ -34,6 +36,70 @@ function dateDiffInDays(from: Date, to: Date) {
   return Math.floor((toUtc - fromUtc) / (24 * 60 * 60 * 1000));
 }
 
+const MAX_SUGGESTED_ROUTES = 2;
+
+function normStop(s: string) {
+  return s.trim().toLowerCase();
+}
+
+function isColomboOrigin(origin: string): boolean {
+  const o = normStop(origin);
+  return o === "colombo" || o.startsWith("colombo ");
+}
+
+function destinationMatches(dest: string, city: string): boolean {
+  const d = normStop(dest);
+  const c = normStop(city);
+  return d === c || d.startsWith(`${c},`) || d.startsWith(`${c} `);
+}
+
+function routePairKey(r: CatalogRoute) {
+  return `${normStop(r.origin)}|${normStop(r.destination)}`;
+}
+
+/** Up to two rows: Colombo → Galle first when in catalog, then Colombo → Kandy, then any other route. */
+function pickSuggestedRoutes(items: CatalogRoute[]): CatalogRoute[] {
+  const valid = items.filter((r) => r.origin?.trim() && r.destination?.trim());
+  if (valid.length === 0) return [];
+
+  const used = new Set<string>();
+  const out: CatalogRoute[] = [];
+
+  const galle = valid.find((r) => isColomboOrigin(r.origin) && destinationMatches(r.destination, "Galle"));
+  if (galle) {
+    out.push(galle);
+    used.add(routePairKey(galle));
+  }
+
+  const kandy = valid.find(
+    (r) => isColomboOrigin(r.origin) && destinationMatches(r.destination, "Kandy") && !used.has(routePairKey(r))
+  );
+  if (kandy && out.length < MAX_SUGGESTED_ROUTES) {
+    out.push(kandy);
+    used.add(routePairKey(kandy));
+  }
+
+  for (const r of valid) {
+    if (out.length >= MAX_SUGGESTED_ROUTES) break;
+    const k = routePairKey(r);
+    if (!used.has(k)) {
+      out.push(r);
+      used.add(k);
+    }
+  }
+
+  return out;
+}
+
+function catalogRouteSubtitle(r: CatalogRoute): string {
+  const parts: string[] = [];
+  if (r.isExpress) parts.push("Express");
+  if (r.distanceKm > 0) parts.push(`${r.distanceKm.toFixed(0)} km`);
+  if (r.durationMinutes > 0) parts.push(`${Math.round(r.durationMinutes)} min`);
+  const meta = parts.length ? parts.join(" · ") : "From your route catalog";
+  return r.routeName?.trim() ? `${r.routeName.trim()} · ${meta}` : meta;
+}
+
 export default function RouteSearchScreen({ navigation, route }: Props) {
   const defaultFrom = "Central Terminal, Downtown";
   const [from, setFrom] = useState(defaultFrom);
@@ -49,6 +115,8 @@ export default function RouteSearchScreen({ navigation, route }: Props) {
   const [visibleDateCount, setVisibleDateCount] = useState(30);
   const [locatingOrigin, setLocatingOrigin] = useState(false);
   const [locationNote, setLocationNote] = useState<string | null>(null);
+  const [suggestedRoutes, setSuggestedRoutes] = useState<CatalogRoute[]>([]);
+  const [suggestedLoading, setSuggestedLoading] = useState(true);
   const hasEditedFromRef = useRef(false);
   const fromValueRef = useRef(from);
 
@@ -228,6 +296,48 @@ export default function RouteSearchScreen({ navigation, route }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      setSuggestedLoading(true);
+      try {
+        const { items } = await listRoutes({ limit: 150 });
+        if (!alive) return;
+        setSuggestedRoutes(pickSuggestedRoutes(items));
+      } catch {
+        if (alive) setSuggestedRoutes([]);
+      } finally {
+        if (alive) setSuggestedLoading(false);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const applySuggestedRoute = (route: CatalogRoute) => {
+    const o = route.origin.trim();
+    const d = route.destination.trim();
+    if (!o || !d) return;
+    hasEditedFromRef.current = true;
+    setFrom(o);
+    setTo(d);
+    setFromPlace({
+      id: `catalog-${route.id}-from`,
+      name: o,
+      displayName: o,
+      lat: 0,
+      lon: 0,
+    });
+    setToPlace({
+      id: `catalog-${route.id}-to`,
+      name: d,
+      displayName: d,
+      lat: 0,
+      lon: 0,
+    });
+  };
+
   return (
     <SafeAreaView style={styles.safe}>
       <LinearGradient colors={[colors.bgTop, colors.bgBottom]} style={styles.gradient}>
@@ -353,10 +463,27 @@ export default function RouteSearchScreen({ navigation, route }: Props) {
               />
             </View>
 
-            <Text style={styles.sectionLabel}>RECENT ROUTES</Text>
+            <Text style={styles.sectionLabel}>SUGGESTED ROUTES</Text>
             <View style={styles.recentWrap}>
-              <RecentRoute title="Central -> East Side" subtitle="Last searched 2h ago" amount="$12" />
-              <RecentRoute title="Airport -> City Mall" subtitle="Last searched 2h ago" amount="$25" />
+              {suggestedLoading ? (
+                <View style={styles.suggestedLoadingRow}>
+                  <ActivityIndicator color="#7EB5F6" />
+                  <Text style={styles.suggestedLoadingText}>Loading routes from Firebase…</Text>
+                </View>
+              ) : null}
+              {!suggestedLoading && suggestedRoutes.length === 0 ? (
+                <Text style={styles.suggestedEmpty}>No routes available. Check your connection and API.</Text>
+              ) : null}
+              {!suggestedLoading &&
+                suggestedRoutes.map((r) => (
+                  <SuggestedRouteRow
+                    key={r.id}
+                    title={`${r.origin} → ${r.destination}`}
+                    subtitle={catalogRouteSubtitle(r)}
+                    badge={passengerRouteCode(r.routeId, r.shortRouteId)}
+                    onPress={() => applySuggestedRoute(r)}
+                  />
+                ))}
             </View>
 
             <Pressable
@@ -380,12 +507,13 @@ export default function RouteSearchScreen({ navigation, route }: Props) {
                       lon: 0,
                     })
                   : null;
-                const result = await search({ from: manualFrom, to: manualTo });
+                const result = await search({ from: manualFrom, to: manualTo, travelDateKey: selectedDate });
                 navigation.navigate("AvailableBuses", {
                   from,
                   to,
                   fromPlace: manualFrom ?? undefined,
                   toPlace: manualTo ?? undefined,
+                  travelDateKey: selectedDate,
                   initialResults: result?.data ?? [],
                   initialError: result?.error ?? null,
                 });
@@ -422,22 +550,38 @@ function PrefItem({
   );
 }
 
-function RecentRoute({ title, subtitle, amount }: { title: string; subtitle: string; amount: string }) {
+function SuggestedRouteRow({
+  title,
+  subtitle,
+  badge,
+  onPress,
+}: {
+  title: string;
+  subtitle: string;
+  badge: string;
+  onPress: () => void;
+}) {
   return (
-    <View style={styles.recentRow}>
-      <View style={styles.rowCenter}>
+    <Pressable style={({ pressed }) => [styles.recentRow, pressed && styles.recentRowPressed]} onPress={onPress}>
+      <View style={styles.suggestedRowMain}>
         <View style={styles.clockIcon}>
-          <Ionicons name="time-outline" size={13} color="#9CB3CC" />
+          <Ionicons name="bus-outline" size={13} color="#9CB3CC" />
         </View>
-        <View>
-          <Text style={styles.recentTitle}>{title}</Text>
-          <Text style={styles.recentSub}>{subtitle}</Text>
+        <View style={styles.recentTextCol}>
+          <Text style={styles.recentTitle} numberOfLines={1}>
+            {title}
+          </Text>
+          <Text style={styles.recentSub} numberOfLines={2}>
+            {subtitle}
+          </Text>
         </View>
       </View>
-      <View style={styles.amountPill}>
-        <Text style={styles.amountText}>{amount}</Text>
+      <View style={styles.routeCodePill}>
+        <Text style={styles.routeCodePillText} numberOfLines={1}>
+          {badge}
+        </Text>
       </View>
-    </View>
+    </Pressable>
   );
 }
 
@@ -545,6 +689,15 @@ const styles = StyleSheet.create({
   prefText: { color: "#B8CADE", fontSize: 13, fontWeight: "800" },
   prefTextActive: { color: "#DDEBFA" },
   recentWrap: { gap: 10, marginBottom: 18 },
+  suggestedLoadingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 4,
+  },
+  suggestedLoadingText: { color: "#98AEC7", fontSize: 13, fontWeight: "600" },
+  suggestedEmpty: { color: "#98AEC7", fontSize: 13, lineHeight: 18, paddingVertical: 8 },
   recentRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -556,6 +709,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 14,
   },
+  recentRowPressed: { opacity: 0.88, borderColor: "#2A4A68" },
+  suggestedRowMain: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 8 },
+  recentTextCol: { flex: 1, minWidth: 0 },
   clockIcon: {
     width: 26,
     height: 26,
@@ -565,12 +721,19 @@ const styles = StyleSheet.create({
     borderColor: "#1E2D3F",
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 9,
   },
   recentTitle: { color: "#EAF3FF", fontSize: 17, fontWeight: "800" },
   recentSub: { color: "#98AEC7", fontSize: 12, marginTop: 2 },
-  amountPill: { backgroundColor: "#10253D", borderRadius: 999, paddingHorizontal: 11, paddingVertical: 4 },
-  amountText: { color: "#7EB5F6", fontSize: 13, fontWeight: "800" },
+  routeCodePill: {
+    flexShrink: 0,
+    maxWidth: "34%",
+    backgroundColor: "#10253D",
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    marginLeft: 8,
+  },
+  routeCodePillText: { color: "#7EB5F6", fontSize: 12, fontWeight: "800", textAlign: "center" },
   button: {
     height: 54,
     borderRadius: 12,

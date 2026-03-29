@@ -63,6 +63,14 @@ async function seedDriverDemoTripsAndBookings({ driverId, passengerUids, nowIso 
   const arrPast1 = new Date(t - 2 * 24 * 60 * 60 * 1000 + 10 * 60 * 60 * 1000).toISOString();
   const depPast2 = new Date(t - 5 * 24 * 60 * 60 * 1000 + 14 * 60 * 60 * 1000).toISOString();
   const arrPast2 = new Date(t - 5 * 24 * 60 * 60 * 1000 + 15 * 60 * 60 * 1000).toISOString();
+  const depPast3 = new Date(t - 7 * 24 * 60 * 60 * 1000 + 6 * 60 * 60 * 1000).toISOString();
+  const arrPast3 = new Date(t - 7 * 24 * 60 * 60 * 1000 + 7 * 60 * 60 * 1000).toISOString();
+  const depPast4 = new Date(t - 10 * 24 * 60 * 60 * 1000 + 15 * 60 * 60 * 1000).toISOString();
+  const arrPast4 = new Date(t - 10 * 24 * 60 * 60 * 1000 + 16 * 60 * 60 * 1000).toISOString();
+  const depPast5 = new Date(t - 14 * 24 * 60 * 60 * 1000 + 10 * 60 * 60 * 1000).toISOString();
+  const arrPast5 = new Date(t - 14 * 24 * 60 * 60 * 1000 + 11 * 60 * 60 * 1000).toISOString();
+  const depPast6 = new Date(t - 21 * 24 * 60 * 60 * 1000 + 9 * 60 * 60 * 1000).toISOString();
+  const arrPast6 = new Date(t - 21 * 24 * 60 * 60 * 1000 + 10 * 60 * 60 * 1000).toISOString();
 
   const trips = firestore.collection(collections.trips);
 
@@ -162,6 +170,106 @@ async function seedDriverDemoTripsAndBookings({ driverId, passengerUids, nowIso 
     updatedAt: nowIso,
   });
 
+  await trips.doc("driver_demo_past_3").set({
+    id: "driver_demo_past_3",
+    routeId: "138",
+    routeCode: "138",
+    routeName: "Panadura – Pettah Express",
+    isExpress: true,
+    vehicleId: "BUS-138",
+    vehicleCode: "BUS-138",
+    driverId,
+    originStopCode: "PANADURA",
+    destinationStopCode: "PETTAH",
+    originStopName: "Panadura Bus Stand",
+    destinationStopName: "Colombo Pettah Central",
+    departureAt: depPast3,
+    arrivalAt: arrPast3,
+    baseFare: 220,
+    seatsAvailable: 0,
+    status: "completed",
+    completedAt: arrPast3,
+    tripEarningsLkr: 1320,
+    notes: null,
+    createdAt: depPast3,
+    updatedAt: nowIso,
+  });
+
+  await trips.doc("driver_demo_past_4").set({
+    id: "driver_demo_past_4",
+    routeId: "119",
+    routeCode: "119",
+    routeName: "Kottawa – Borella",
+    isExpress: false,
+    vehicleId: "BUS-119",
+    vehicleCode: "BUS-119",
+    driverId,
+    originStopCode: "KOTTAWA",
+    destinationStopCode: "BORELLA",
+    originStopName: "Kottawa Junction",
+    destinationStopName: "Borella Clock Tower",
+    departureAt: depPast4,
+    arrivalAt: arrPast4,
+    baseFare: 95,
+    seatsAvailable: 0,
+    status: "completed",
+    completedAt: arrPast4,
+    tripEarningsLkr: 665,
+    notes: null,
+    createdAt: depPast4,
+    updatedAt: nowIso,
+  });
+
+  await trips.doc("driver_demo_past_5").set({
+    id: "driver_demo_past_5",
+    routeId: "163",
+    routeCode: "163",
+    routeName: "Homagama – Fort",
+    isExpress: false,
+    vehicleId: "BUS-163",
+    vehicleCode: "BUS-163",
+    driverId,
+    originStopCode: "HOMAGAMA",
+    destinationStopCode: "COLOMBO-FORT",
+    originStopName: "Homagama Central",
+    destinationStopName: "Colombo Fort",
+    departureAt: depPast5,
+    arrivalAt: arrPast5,
+    baseFare: 110,
+    seatsAvailable: 0,
+    status: "completed",
+    completedAt: arrPast5,
+    tripEarningsLkr: 770,
+    notes: null,
+    createdAt: depPast5,
+    updatedAt: nowIso,
+  });
+
+  await trips.doc("driver_demo_past_6").set({
+    id: "driver_demo_past_6",
+    routeId: "200",
+    routeCode: "200",
+    routeName: "Galle – Matara Coastal",
+    isExpress: false,
+    vehicleId: "BUS-200",
+    vehicleCode: "BUS-200",
+    driverId,
+    originStopCode: "GALLE",
+    destinationStopCode: "MATARA",
+    originStopName: "Galle Bus Terminal",
+    destinationStopName: "Matara Central",
+    departureAt: depPast6,
+    arrivalAt: arrPast6,
+    baseFare: 180,
+    seatsAvailable: 0,
+    status: "completed",
+    completedAt: arrPast6,
+    tripEarningsLkr: 1080,
+    notes: null,
+    createdAt: depPast6,
+    updatedAt: nowIso,
+  });
+
   const bookings = firestore.collection(collections.bookings);
   const scheduled1Id = "driver_demo_scheduled_1";
   const fortTripId = "trip-demo-402";
@@ -180,6 +288,13 @@ async function seedDriverDemoTripsAndBookings({ driverId, passengerUids, nowIso 
     boardedAt: boardedAt1,
     createdAt: createdEarly,
     updatedAt: nowIso,
+  });
+
+  await firestore.collection(collections.tickets).doc("demo_booking_1").set({
+    id: "demo_booking_1",
+    bookingId: "demo_booking_1",
+    qrCode: "QR-demo_booking_1",
+    issuedAt: createdEarly,
   });
 
   await bookings.doc("demo_booking_2").set({
@@ -207,6 +322,170 @@ async function seedDriverDemoTripsAndBookings({ driverId, passengerUids, nowIso 
     createdAt: nowIso,
     updatedAt: nowIso,
   });
+
+  /**
+   * Main passenger (passenger@smartbus.local = passengerUids[0]): completed history for My Trips.
+   * `tripSnapshot` duplicates trip fields so the app still shows Completed after a successful booking
+   * even if `trips/{id}` cannot be read on the client (rules / emulator mismatch).
+   */
+  const mainPassengerId = uidAt(0);
+  const mainCompletedBookings: {
+    docId: string;
+    tripId: string;
+    seatId: string;
+    totalAmount: number;
+    createdAt: string;
+    boardedAt: string;
+    tripSnapshot: Record<string, unknown>;
+  }[] = [
+    {
+      docId: "demo_booking_main_past_1",
+      tripId: "driver_demo_past_1",
+      seatId: "2A",
+      totalAmount: 120,
+      createdAt: depPast1,
+      boardedAt: arrPast1,
+      tripSnapshot: {
+        id: "driver_demo_past_1",
+        routeId: "154",
+        routeCode: "154",
+        routeName: "Galle Road – Mount Lavinia",
+        originStopName: "Colombo Public Library",
+        destinationStopName: "Mount Lavinia Junction",
+        departureAt: depPast1,
+        arrivalAt: arrPast1,
+        completedAt: arrPast1,
+        status: "completed",
+        vehicleId: "BUS-154",
+        vehicleCode: "BUS-154",
+      },
+    },
+    {
+      docId: "demo_booking_main_past_2",
+      tripId: "driver_demo_past_2",
+      seatId: "3D",
+      totalAmount: 85,
+      createdAt: depPast2,
+      boardedAt: arrPast2,
+      tripSnapshot: {
+        id: "driver_demo_past_2",
+        routeId: "176",
+        routeCode: "176",
+        routeName: "Battaramulla – Nugegoda",
+        originStopName: "Battaramulla Transport Hub",
+        destinationStopName: "Nugegoda Kohuwala",
+        departureAt: depPast2,
+        arrivalAt: arrPast2,
+        completedAt: arrPast2,
+        status: "completed",
+        vehicleId: "BUS-176",
+        vehicleCode: "BUS-176",
+      },
+    },
+    {
+      docId: "demo_booking_main_past_3",
+      tripId: "driver_demo_past_3",
+      seatId: "4B",
+      totalAmount: 220,
+      createdAt: depPast3,
+      boardedAt: arrPast3,
+      tripSnapshot: {
+        id: "driver_demo_past_3",
+        routeId: "138",
+        routeCode: "138",
+        routeName: "Panadura – Pettah Express",
+        originStopName: "Panadura Bus Stand",
+        destinationStopName: "Colombo Pettah Central",
+        departureAt: depPast3,
+        arrivalAt: arrPast3,
+        completedAt: arrPast3,
+        status: "completed",
+        vehicleId: "BUS-138",
+        vehicleCode: "BUS-138",
+      },
+    },
+    {
+      docId: "demo_booking_main_past_4",
+      tripId: "driver_demo_past_4",
+      seatId: "1C",
+      totalAmount: 95,
+      createdAt: depPast4,
+      boardedAt: arrPast4,
+      tripSnapshot: {
+        id: "driver_demo_past_4",
+        routeId: "119",
+        routeCode: "119",
+        routeName: "Kottawa – Borella",
+        originStopName: "Kottawa Junction",
+        destinationStopName: "Borella Clock Tower",
+        departureAt: depPast4,
+        arrivalAt: arrPast4,
+        completedAt: arrPast4,
+        status: "completed",
+        vehicleId: "BUS-119",
+        vehicleCode: "BUS-119",
+      },
+    },
+    {
+      docId: "demo_booking_main_past_5",
+      tripId: "driver_demo_past_5",
+      seatId: "5A",
+      totalAmount: 110,
+      createdAt: depPast5,
+      boardedAt: arrPast5,
+      tripSnapshot: {
+        id: "driver_demo_past_5",
+        routeId: "163",
+        routeCode: "163",
+        routeName: "Homagama – Fort",
+        originStopName: "Homagama Central",
+        destinationStopName: "Colombo Fort",
+        departureAt: depPast5,
+        arrivalAt: arrPast5,
+        completedAt: arrPast5,
+        status: "completed",
+        vehicleId: "BUS-163",
+        vehicleCode: "BUS-163",
+      },
+    },
+    {
+      docId: "demo_booking_main_past_6",
+      tripId: "driver_demo_past_6",
+      seatId: "6F",
+      totalAmount: 180,
+      createdAt: depPast6,
+      boardedAt: arrPast6,
+      tripSnapshot: {
+        id: "driver_demo_past_6",
+        routeId: "200",
+        routeCode: "200",
+        routeName: "Galle – Matara Coastal",
+        originStopName: "Galle Bus Terminal",
+        destinationStopName: "Matara Central",
+        departureAt: depPast6,
+        arrivalAt: arrPast6,
+        completedAt: arrPast6,
+        status: "completed",
+        vehicleId: "BUS-200",
+        vehicleCode: "BUS-200",
+      },
+    },
+  ];
+  for (const row of mainCompletedBookings) {
+    await bookings.doc(row.docId).set({
+      id: row.docId,
+      userId: mainPassengerId,
+      tripId: row.tripId,
+      seatId: row.seatId,
+      status: "CONFIRMED",
+      totalAmount: row.totalAmount,
+      boarded: true,
+      boardedAt: row.boardedAt,
+      createdAt: row.createdAt,
+      updatedAt: nowIso,
+      tripSnapshot: row.tripSnapshot,
+    });
+  }
 
   /** Colombo Fort trip: queue + occupancy + trip earnings (boarded CONFIRMED only) */
   const fortCreated = new Date(t - 4 * 60 * 60 * 1000).toISOString();
@@ -323,6 +602,7 @@ async function main() {
         id: uid,
         userId: uid,
         balance: 428.5,
+        transitPoints: 1240,
         rewards: [
           {
             id: "reward-free-weekly-pass",
@@ -346,11 +626,37 @@ async function main() {
         createdAt: now,
         updatedAt: now,
       });
+
+      const t1 = `seed-${uid}-tx1`;
+      const t2 = `seed-${uid}-tx2`;
+      await firestore.collection(collections.walletTransactions).doc(t1).set(
+        {
+          id: t1,
+          walletId: uid,
+          type: "TOPUP",
+          amount: 100,
+          reference: "wallet-topup",
+          createdAt: new Date(Date.now() - 2 * 86400000).toISOString(),
+        },
+        { merge: true }
+      );
+      await firestore.collection(collections.walletTransactions).doc(t2).set(
+        {
+          id: t2,
+          walletId: uid,
+          type: "TOPUP",
+          amount: 50,
+          reference: "wallet-topup",
+          createdAt: new Date(Date.now() - 86400000).toISOString(),
+        },
+        { merge: true }
+      );
     } else {
       await firestore.collection(collections.wallets).doc(uid).set({
         id: uid,
         userId: uid,
         balance: 120 + (i % 7) * 15,
+        transitPoints: 0,
         rewards: [],
         vouchers: [],
         createdAt: now,
@@ -372,6 +678,7 @@ async function main() {
     id: driverId,
     userId: driverId,
     balance: 120,
+    transitPoints: 0,
     rewards: [],
     vouchers: [],
     createdAt: now,
@@ -379,8 +686,12 @@ async function main() {
   });
 
   await seedDriverDemoTripsAndBookings({ driverId, passengerUids, nowIso: now });
+  const mainEmail = DEMO_PASSENGERS[0]?.email ?? "passenger@smartbus.local";
   console.log(
-    `Driver demo seeded: ${DEMO_PASSENGERS.length} passengers (Sri Lankan names), trip-demo-402 + ${3 + 18} bookings, driver_demo_* trips.`
+    `Driver demo seeded: ${DEMO_PASSENGERS.length} passengers, trip-demo-402 + ${3 + 6 + 18} bookings, driver_demo_* trips.`
+  );
+  console.log(
+    `  → ${mainEmail}: 6 completed-trip bookings (demo_booking_main_past_1–6) + 1 upcoming (demo_booking_1). Re-run: npm --prefix backend run seed:users`
   );
 }
 

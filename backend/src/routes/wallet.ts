@@ -4,7 +4,7 @@ import { z } from "zod";
 import { collections } from "../db/collections";
 import { firestore } from "../db/firestore";
 import { asyncHandler } from "../lib/asyncHandler";
-import { toIso, toNumber } from "../lib/firestoreUtils";
+import { toDate, toIso, toNumber } from "../lib/firestoreUtils";
 import { requireAuth } from "../lib/auth";
 import { HttpError } from "../lib/httpError";
 
@@ -30,6 +30,7 @@ walletRouter.get(
     res.json({
       id: String(wallet.id ?? req.auth!.userId),
       balance: toNumber(wallet.balance),
+      transitPoints: toNumber(wallet.transitPoints),
       rewards: Array.isArray(wallet.rewards) ? wallet.rewards : [],
       vouchers: Array.isArray(wallet.vouchers) ? wallet.vouchers : [],
     });
@@ -42,21 +43,25 @@ walletRouter.get(
   asyncHandler(async (req, res) => {
     const walletSnap = await firestore.collection(collections.wallets).doc(req.auth!.userId).get();
     if (!walletSnap.exists) throw new HttpError(404, "Wallet not found");
-    const query = await firestore
+    // Equality-only query avoids a composite index (walletId + createdAt). Sort newest-first in memory.
+    const querySnap = await firestore
       .collection(collections.walletTransactions)
       .where("walletId", "==", req.auth!.userId)
-      .orderBy("createdAt", "desc")
-      .limit(100)
       .get();
-    const items = query.docs.map((doc) => {
-      const data = doc.data();
-      return {
-        id: doc.id,
-        ...data,
-        amount: toNumber(data.amount),
-        createdAt: toIso(data.createdAt),
-      };
-    });
+    const items = querySnap.docs
+      .map((doc) => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          amount: toNumber(data.amount),
+          createdAt: toIso(data.createdAt),
+          _sortMs: toDate(data.createdAt).getTime(),
+        };
+      })
+      .sort((a, b) => b._sortMs - a._sortMs)
+      .slice(0, 100)
+      .map(({ _sortMs: _ignored, ...row }) => row);
     res.json({ items });
   })
 );

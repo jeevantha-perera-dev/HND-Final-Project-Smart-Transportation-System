@@ -103,6 +103,7 @@ async function main() {
     const isExpress = Boolean(route.isExpress);
     const baseFare = fareByRoute.get(routeId) ?? DEFAULT_FARE_LKR;
     const seatsAvailable = 45;
+    const shortRouteId = String(route.shortRouteId ?? "").trim();
 
     for (let d = 0; d < DAYS; d += 1) {
       const ymd = colomboYmd(d);
@@ -120,6 +121,7 @@ async function main() {
           id: docId,
           routeId,
           routeCode: routeId,
+          ...(shortRouteId ? { shortRouteId } : {}),
           routeName,
           isExpress,
           vehicleId: `BUS-${toSafeDocId(routeId)}`,

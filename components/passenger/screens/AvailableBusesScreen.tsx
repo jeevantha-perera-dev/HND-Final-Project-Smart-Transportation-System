@@ -8,6 +8,7 @@ import { searchBusRoutes } from "../../../services/locationService";
 import { enrichBusResultsWithTrips } from "../../../services/tripMatch";
 import { BusResult } from "../../../types/bus";
 import { formatArrivingHeadline, formatJourneyDuration } from "../../../utils/eta";
+import { passengerRouteDisplayId } from "../../../utils/busDisplay";
 
 const ACCENT = "#5E5CE6";
 const BG = "#000000";
@@ -24,6 +25,14 @@ const PREDICTION_PURPLE = "#B4A9FF";
 
 const SORT_FILTERS = ["Recommended", "Cheapest", "Earliest", "Express"] as const;
 
+function formatTravelDateLine(dateKey: string | undefined): string | null {
+  if (!dateKey || !/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) return null;
+  const [y, m, d] = dateKey.split("-").map(Number);
+  if (!y || !m || !d) return null;
+  const dt = new Date(y, m - 1, d);
+  return dt.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+}
+
 type Props = NativeStackScreenProps<PassengerHomeStackParamList, "AvailableBuses">;
 
 export default function AvailableBusesScreen({ navigation, route }: Props) {
@@ -32,6 +41,10 @@ export default function AvailableBusesScreen({ navigation, route }: Props) {
   const [loading, setLoading] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const [error, setError] = useState<string | null>(route.params?.initialError ?? null);
+
+  const travelDateKey = route.params?.travelDateKey;
+  const travelDateLine = useMemo(() => formatTravelDateLine(travelDateKey), [travelDateKey]);
+  const searchOpts = useMemo(() => ({ travelDateKey }), [travelDateKey]);
 
   const fetchLiveResults = async () => {
     if (!route.params?.fromPlace || !route.params?.toPlace) {
@@ -42,11 +55,12 @@ export default function AvailableBusesScreen({ navigation, route }: Props) {
     setRetrying(false);
     setError(null);
     try {
-      const raw = await searchBusRoutes(route.params.fromPlace, route.params.toPlace);
+      const raw = await searchBusRoutes(route.params.fromPlace, route.params.toPlace, searchOpts);
       const data = await enrichBusResultsWithTrips(
         raw,
         route.params.fromPlace.displayName || route.params.fromPlace.name,
-        route.params.toPlace.displayName || route.params.toPlace.name
+        route.params.toPlace.displayName || route.params.toPlace.name,
+        travelDateKey
       );
       setItems(data);
     } catch (firstError) {
@@ -54,11 +68,12 @@ export default function AvailableBusesScreen({ navigation, route }: Props) {
       setRetrying(true);
       try {
         await new Promise((resolve) => setTimeout(resolve, 1500));
-        const retriedRaw = await searchBusRoutes(route.params.fromPlace, route.params.toPlace);
+        const retriedRaw = await searchBusRoutes(route.params.fromPlace, route.params.toPlace, searchOpts);
         const retried = await enrichBusResultsWithTrips(
           retriedRaw,
           route.params.fromPlace.displayName || route.params.fromPlace.name,
-          route.params.toPlace.displayName || route.params.toPlace.name
+          route.params.toPlace.displayName || route.params.toPlace.name,
+          travelDateKey
         );
         setItems(retried);
       } catch (secondError) {
@@ -81,12 +96,13 @@ export default function AvailableBusesScreen({ navigation, route }: Props) {
           if (mounted) setError("Could not fetch live data. Check your connection.");
           return;
         }
-        const resultRaw = await searchBusRoutes(route.params.fromPlace, route.params.toPlace);
+        const resultRaw = await searchBusRoutes(route.params.fromPlace, route.params.toPlace, searchOpts);
         if (!mounted) return;
         const result = await enrichBusResultsWithTrips(
           resultRaw,
           route.params.fromPlace.displayName || route.params.fromPlace.name,
-          route.params.toPlace.displayName || route.params.toPlace.name
+          route.params.toPlace.displayName || route.params.toPlace.name,
+          travelDateKey
         );
         if (!mounted) return;
         setItems(result);
@@ -101,7 +117,7 @@ export default function AvailableBusesScreen({ navigation, route }: Props) {
     return () => {
       mounted = false;
     };
-  }, [route.params?.fromPlace, route.params?.toPlace]);
+  }, [route.params?.fromPlace, route.params?.toPlace, travelDateKey, searchOpts]);
 
   const buses = useMemo(() => {
     const copy = [...items];
@@ -137,6 +153,11 @@ export default function AvailableBusesScreen({ navigation, route }: Props) {
             <Text style={styles.showingLabel} numberOfLines={1}>
               SHOWING {buses.length} OPTIONS
             </Text>
+            {travelDateLine ? (
+              <Text style={styles.travelDateHint} numberOfLines={1}>
+                {`For ${travelDateLine}`}
+              </Text>
+            ) : null}
           </View>
           <Pressable style={styles.livePill}>
             <Ionicons name="flash" size={13} color={LIVE_BLUE} />
@@ -197,7 +218,7 @@ export default function AvailableBusesScreen({ navigation, route }: Props) {
                 if (!bus.tripId) return;
                 navigation.navigate("SeatSelection", {
                   tripId: bus.tripId,
-                  busId: `R-${bus.routeNumber}`,
+                  busId: passengerRouteDisplayId(bus.routeNumber, bus.shortRouteNumber),
                   routeName: bus.routeName,
                   price: `LKR ${bus.price.toFixed(0)}`,
                 });
@@ -224,24 +245,35 @@ function BusCard({ bus, onSelect }: { bus: BusResult; onSelect: () => void }) {
   return (
     <View style={styles.card}>
       <View style={styles.cardTop}>
-        <View style={styles.busIdRow}>
-          <Text style={styles.busId}>{`R-${bus.routeNumber}`}</Text>
-          {bus.isExpress ? (
-            <View style={styles.expressTag}>
-              <Text style={styles.expressTagText}>Express</Text>
-            </View>
-          ) : null}
+        <View style={styles.busIdRowWrap}>
+          <View style={styles.busIdRow}>
+            <Text style={styles.busId} numberOfLines={1} ellipsizeMode="tail">
+              {passengerRouteDisplayId(bus.routeNumber, bus.shortRouteNumber)}
+            </Text>
+            {bus.isExpress ? (
+              <View style={styles.expressTag}>
+                <Text style={styles.expressTagText}>Express</Text>
+              </View>
+            ) : null}
+          </View>
         </View>
         <View style={styles.arrivalCol}>
           <View style={styles.arrivalRow}>
             <Ionicons name="time-outline" size={15} color={BUS_ID_BLUE} />
-            <Text style={styles.arrivalMins}>{formatArrivingHeadline(bus.arrivingInMinutes)}</Text>
-            <Text style={styles.arrivingInline}> ARRIVING</Text>
+            <Text style={styles.arrivalMins} numberOfLines={1}>
+              {formatArrivingHeadline(bus.arrivingInMinutes)}
+            </Text>
+            <Text style={styles.arrivingInline} numberOfLines={1}>
+              {" "}
+              ARRIVING
+            </Text>
           </View>
         </View>
       </View>
 
-      <Text style={styles.routeName}>{bus.routeName}</Text>
+      <Text style={styles.routeName} numberOfLines={2} ellipsizeMode="tail">
+        {bus.routeName}
+      </Text>
 
       <View style={styles.seatsRow}>
         <Ionicons name="bus-outline" size={18} color={TEXT_MUTED} />
@@ -258,9 +290,7 @@ function BusCard({ bus, onSelect }: { bus: BusResult; onSelect: () => void }) {
         <Ionicons name="trending-up-outline" size={16} color={TEXT_MUTED} />
         <Text style={styles.predictionText}>
           {`${formatJourneyDuration(bus.durationMinutes)} • ${bus.distanceKm.toFixed(1)} km • `}
-          <Text style={styles.predictionHighlight}>
-            {bus.departureLabel}
-          </Text>
+          <Text style={styles.predictionHighlight}>{bus.departureLabel}</Text>
         </Text>
         <Ionicons name="information-circle-outline" size={16} color={TEXT_MUTED} />
       </View>
@@ -348,6 +378,12 @@ const styles = StyleSheet.create({
       default: "monospace",
     }),
   },
+  travelDateHint: {
+    color: "#8E8E93",
+    fontSize: 12,
+    fontWeight: "600",
+    marginTop: 4,
+  },
   livePill: {
     flexDirection: "row",
     alignItems: "center",
@@ -382,10 +418,18 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 10,
   },
-  cardTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
-  busIdRow: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
-  busId: { color: BUS_ID_BLUE, fontSize: 22, fontWeight: "800" },
+  cardTop: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  /** Takes remaining width so the arrival pill stays on-card and can shrink the route id. */
+  busIdRowWrap: { flex: 1, minWidth: 0, marginRight: 4 },
+  busIdRow: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap", minWidth: 0 },
+  busId: { flexGrow: 1, flexShrink: 1, minWidth: 0, color: BUS_ID_BLUE, fontSize: 22, fontWeight: "800" },
   expressTag: {
+    flexShrink: 0,
     backgroundColor: "#2E2848",
     paddingHorizontal: 8,
     paddingVertical: 4,
@@ -394,8 +438,14 @@ const styles = StyleSheet.create({
     borderColor: "#3D3558",
   },
   expressTagText: { color: "#A995E8", fontSize: 11, fontWeight: "700" },
-  arrivalCol: { alignItems: "flex-end", justifyContent: "center" },
-  arrivalRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" },
+  arrivalCol: { flexShrink: 0, alignItems: "flex-end", justifyContent: "center" },
+  arrivalRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "nowrap",
+    justifyContent: "flex-end",
+    maxWidth: "100%",
+  },
   arrivalMins: { color: BUS_ID_BLUE, fontSize: 15, fontWeight: "700" },
   arrivingInline: {
     color: BUS_ID_BLUE,
@@ -403,7 +453,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     letterSpacing: 0.4,
   },
-  routeName: { color: "#FFFFFF", fontSize: 16, fontWeight: "600" },
+  routeName: { color: "#FFFFFF", fontSize: 16, fontWeight: "600", flexShrink: 1 },
   seatsRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -429,16 +479,18 @@ const styles = StyleSheet.create({
   },
   predictionRow: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     gap: 8,
     paddingVertical: 4,
+    minWidth: 0,
   },
   predictionText: {
     flex: 1,
+    flexShrink: 1,
+    minWidth: 0,
     color: PREDICTION_PURPLE,
     fontSize: 12,
     fontWeight: "500",
-    minWidth: "55%",
   },
   predictionHighlight: { color: PREDICTION_PURPLE, fontWeight: "700" },
   cardBottom: {

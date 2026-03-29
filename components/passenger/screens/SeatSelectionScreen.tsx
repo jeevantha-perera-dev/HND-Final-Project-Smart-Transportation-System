@@ -5,6 +5,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ApiError } from "../../../services/api/client";
 import { getTripDetail, type TripDetail } from "../../../services/api/trips";
+import { passengerRouteDisplayId } from "../../../utils/busDisplay";
 import { PassengerHomeStackParamList } from "../types";
 
 const BG = "#121212";
@@ -96,7 +97,10 @@ export default function SeatSelectionScreen({ navigation, route }: Props) {
 
   const baseFareLkr = trip?.baseFare ?? paramFareLkr;
   const displayRouteName = trip?.routeName ?? paramRouteName;
-  const displayBusId = trip?.routeCode?.trim() ? `R-${trip.routeCode.trim()}` : paramBusId;
+  const displayBusId =
+    trip != null
+      ? passengerRouteDisplayId(trip.routeCode?.trim() ?? "", trip.shortRouteId)
+      : paramBusId;
   const vehicleLabel = trip?.vehicleCode ?? "";
   const priceLabel = `LKR ${baseFareLkr.toFixed(0)}`;
 

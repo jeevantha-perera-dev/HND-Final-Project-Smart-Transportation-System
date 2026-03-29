@@ -1,14 +1,43 @@
-Route Name,Route Number,Departure Time,Arrival Time,Distance (km),Bus Operator,Origin,Destination
-Colombo - Elpitiya,EX 1-16,4:15:00,6:10:00,95,SLTB (Elpitiya),Colombo,Elpitiya
-Galle - Kandy/Negombo,EX-01/27/01,6:15:00,7:45:00,,,Galle,Kandy/Negombo
-GALLE - KADUWELA,EX01-23,5:30:00,7:10:00,117,,Galle,Kaduwela
-Colombo - Ambalangoda,EX 1-41,4:00:00,6:05:00,104,,Colombo,Ambalangoda
-Galle - Makumbura,EX-01,5:30:00,7:00:00,107.3,,Galle,Makumbura
-Galle - Kadawatha,EX 1-21,4:30:00,6:00:00,126,PVT-G- 01,Galle,Kadawatha
-Moratuwa University - Matara,EX 1-46,6:00:00,8:30:00,137,PVT - 01,Moratuwa,Matara
-Panadura - Matara,EX 1-25/450,5:30:00,7:20:00,129.8,PVT,Panadura,Matara
-Matara - Kadawatha,EX-1-2,5:00:00,6:50:00,140,ETC,Matara,Kadawatha
-MATARA - KADAWATHA,EX1-22,4:00:00,6:05:00,154,,Matara,Kadawatha
-Matara - Makumbura,EX-01-001,4:15:00,6:00:00,133.5,,Matara,Makumbura
-Matara - Colombo (via Expressway),EX 1-18,3:45:00,6:30:00,152.4,,Matara,Colombo
-Tangalle - Makumbura,EX 1-39,5:30:00,8:00:00,164,SLTB,Tangalle,Makumbura
+Route Name,Route Number,Departure Time,Arrival Time,Distance (km),Bus Operator,Origin,Destination,IsExpress,Short ID
+Colombo - Elpitiya,EX 1-16,4:15:00,6:10:00,95,SLTB (Elpitiya),Colombo,Elpitiya,,E16
+Galle - Kandy/Negombo,EX-01/27/01,6:15:00,7:45:00,,,Galle,Kandy/Negombo,,GK1
+GALLE - KADUWELA,EX01-23,5:30:00,7:10:00,117,,Galle,Kaduwela,,GK2
+Colombo - Ambalangoda,EX 1-41,4:00:00,6:05:00,104,,Colombo,Ambalangoda,,A41
+Galle - Makumbura,EX-01,5:30:00,7:00:00,107.3,,Galle,Makumbura,,GM1
+Galle - Kadawatha,EX 1-21,4:30:00,6:00:00,126,PVT-G- 01,Galle,Kadawatha,,G21
+Moratuwa University - Matara,EX 1-46,6:00:00,8:30:00,137,PVT - 01,Moratuwa,Matara,,M46
+Panadura - Matara,EX 1-25/450,5:30:00,7:20:00,129.8,PVT,Panadura,Matara,,P25
+Matara - Kadawatha,EX-1-2,5:00:00,6:50:00,140,ETC,Matara,Kadawatha,,MK2
+MATARA - KADAWATHA,EX1-22,4:00:00,6:05:00,154,,Matara,Kadawatha,,MK3
+Matara - Makumbura,EX-01-001,4:15:00,6:00:00,133.5,,Matara,Makumbura,,MM1
+Matara - Colombo (via Expressway),EX 1-18,3:45:00,6:30:00,152.4,,Matara,Colombo,,MC1
+Tangalle - Makumbura,EX 1-39,5:30:00,8:00:00,164,SLTB,Tangalle,Makumbura,,T39
+Colombo - Kandy (Express),EX COL-KDY-01,5:30:00,7:30:00,120,SLTB,Colombo,Kandy,,C01
+Colombo - Matale (Express),EX COL-MTL-01,5:45:00,8:15:00,145,SLTB,Colombo,Matale,,C02
+Colombo - Matara (Express),EX COL-MTR-01,4:30:00,7:30:00,160,SLTB,Colombo,Matara,,C03
+Colombo - Kalutara (Normal),EX COL-KLT-01,6:00:00,6:45:00,42,SLTB,Colombo,Kalutara,no,C04
+Colombo - Panadura (Normal),EX COL-PND-01,6:15:00,6:55:00,32,SLTB,Colombo,Panadura,no,C05
+Colombo - Galle (Express),EX COL-GLE-01,5:00:00,7:15:00,125,SLTB,Colombo,Galle,,C06
+Colombo - Negombo (Normal),EX COL-NGM-01,6:30:00,7:15:00,38,SLTB,Colombo,Negombo,no,C07
+Colombo - Kurunegala (Normal),EX COL-KRG-01,5:15:00,7:00:00,95,SLTB,Colombo,Kurunegala,no,C08
+Colombo - Badulla (Express),EX COL-BDL-01,4:45:00,8:45:00,200,SLTB,Colombo,Badulla,,C09
+Colombo - Ratnapura (Normal),EX COL-RTP-01,5:30:00,7:15:00,95,SLTB,Colombo,Ratnapura,no,C10
+Colombo - Anuradhapura (Express),EX COL-ADP-01,5:00:00,8:00:00,205,SLTB,Colombo,Anuradhapura,,C11
+Colombo - Trincomalee (Express),EX COL-TRI-01,4:30:00,9:00:00,265,SLTB,Colombo,Trincomalee,,C12
+Colombo - Batticaloa (Express),EX COL-BTC-01,4:15:00,9:30:00,320,SLTB,Colombo,Batticaloa,,C13
+Colombo - Nuwara Eliya (Express),EX COL-NE-01,5:00:00,8:30:00,175,SLTB,Colombo,Nuwara Eliya,,C14
+Colombo - Hikkaduwa (Express),EX COL-HKW-01,5:30:00,7:30:00,100,SLTB,Colombo,Hikkaduwa,,C15
+Colombo - Weligama (Express),EX COL-WLG-01,5:15:00,7:45:00,140,SLTB,Colombo,Weligama,,C16
+Colombo - Embilipitiya (Express),EX COL-EMP-01,5:00:00,8:00:00,175,SLTB,Colombo,Embilipitiya,,C17
+Colombo - Ampara (Express),EX COL-APR-01,4:30:00,9:00:00,315,SLTB,Colombo,Ampara,,C18
+Colombo - Jaffna (Express),EX COL-JFN-01,4:00:00,11:00:00,400,SLTB,Colombo,Jaffna,,C19
+Colombo - Polonnaruwa (Express),EX COL-POL-01,5:15:00,8:45:00,220,SLTB,Colombo,Polonnaruwa,,C20
+Colombo - Dambulla (Express),EX COL-DMB-01,5:30:00,8:00:00,155,SLTB,Colombo,Dambulla,,C21
+Colombo - Puttalam (Normal),EX COL-PTL-01,6:00:00,8:30:00,135,SLTB,Colombo,Puttalam,no,C22
+Colombo - Kegalle (Normal),EX COL-KEG-01,5:45:00,7:15:00,85,SLTB,Colombo,Kegalle,no,C23
+Colombo - Mirissa (Express),EX COL-MRS-01,5:20:00,7:50:00,155,SLTB,Colombo,Mirissa,,C24
+Colombo - Bentota (Normal),EX COL-BEN-01,5:45:00,7:00:00,80,SLTB,Colombo,Bentota,no,C25
+Colombo - Chilaw (Normal),EX COL-CHW-01,6:00:00,8:15:00,95,SLTB,Colombo,Chilaw,no,C26
+Colombo - Vavuniya (Express),EX COL-VAV-01,5:00:00,9:30:00,260,SLTB,Colombo,Vavuniya,,C27
+Colombo - Ella (Express),EX COL-ELA-01,4:30:00,9:00:00,210,SLTB,Colombo,Ella,,C28
+Colombo - Tangalle (Express),EX COL-TGL-01,5:00:00,8:15:00,195,SLTB,Colombo,Tangalle,,C29

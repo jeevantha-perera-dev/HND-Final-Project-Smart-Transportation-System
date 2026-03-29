@@ -1,7 +1,9 @@
 import { apiRequest } from "./api/client";
+import { searchTrips, type TripSearchItem } from "./api/trips";
 import { fetchTransitEstimate } from "./api/transitEstimate";
-import { BusResult, BusStop, CrowdLevel, Journey, Place } from "../types/bus";
+import { BusResult, BusStop, CrowdLevel, Journey, Place, type BusResultType } from "../types/bus";
 import { computeTripETAs, formatArrivingIn } from "../utils/eta";
+import { travelDateKeyToDepartureWindow } from "../utils/travelDate";
 import { calculateFare, haversineDistanceKm, roundDistanceKm } from "./transitCalculations";
 
 const NOMINATIM_BASE = "https://nominatim.openstreetmap.org/search";
@@ -10,6 +12,12 @@ const OSRM_URL = "https://router.project-osrm.org/route/v1/driving";
 const RETRY_DELAY_MS = 1500;
 
 let lastNominatimRequestAt = 0;
+
+/** Public Overpass endpoints rate-limit aggressively; back off after 429 to avoid log spam and bans. */
+let overpassCooldownUntil = 0;
+let lastOverpass429LogAt = 0;
+const OVERPASS_COOLDOWN_MS = 90_000;
+const OVERPASS_429_LOG_INTERVAL_MS = 120_000;
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -52,13 +60,6 @@ function computeCrowdLevel(seatsAvailable: number): CrowdLevel {
   if (seatsAvailable >= 26) return "Low";
   if (seatsAvailable >= 13) return "Medium";
   return "High";
-}
-
-function randomSeats(seed: string) {
-  let hash = 0;
-  for (let i = 0; i < seed.length; i += 1) hash = (hash * 31 + seed.charCodeAt(i)) | 0;
-  const normalized = Math.abs(hash % 41);
-  return normalized + 5;
 }
 
 /** True when lat/lon are usable (non-zero and finite). */
@@ -182,18 +183,154 @@ async function resolveTripMetrics(from: Place, to: Place, seed: string): Promise
   }
 }
 
-function buildBusResultBase(
+/** Same loose rule as backend `includesLoose` for sorting / hints. */
+function includesLooseHaystackNeedle(haystack: string, needle: string): boolean {
+  const h = haystack.trim().toLowerCase();
+  const n = needle.trim().toLowerCase();
+  if (!n) return true;
+  return h.includes(n) || n.includes(h);
+}
+
+/** "To" strings for matching trip `destinationStopName` (autocomplete or typed). */
+function destinationSearchHints(toR: Place): string[] {
+  const hints = new Set<string>();
+  const add = (s: string) => {
+    const t = s.trim();
+    if (t.length >= 2) hints.add(t);
+  };
+  add(toR.name);
+  add(toR.displayName);
+  const head = toR.displayName?.split(",")[0]?.trim() ?? "";
+  if (head) add(head);
+  return [...hints];
+}
+
+/** "From" strings for matching trip `originStopName` (GPS / current location labels included). */
+function originSearchHints(fromR: Place): string[] {
+  const hints = new Set<string>();
+  const add = (s: string) => {
+    const t = s.trim();
+    if (t.length >= 2) hints.add(t);
+  };
+  add(fromR.name);
+  add(fromR.displayName);
+  const head = fromR.displayName?.split(",")[0]?.trim() ?? "";
+  if (head) add(head);
+  return [...hints];
+}
+
+/** Trip must match passenger origin AND destination (same loose rules as the API). */
+function tripMatchesPassengerRoute(trip: TripSearchItem, fromR: Place, toR: Place): boolean {
+  const o = trip.originStopName || "";
+  const d = trip.destinationStopName || "";
+  const originOk = originSearchHints(fromR).some((h) => includesLooseHaystackNeedle(o, h));
+  const destOk = destinationSearchHints(toR).some((h) => includesLooseHaystackNeedle(d, h));
+  return originOk && destOk;
+}
+
+/**
+ * Pairs of (from,to) query strings so Firestore trip stop names align with maps/autocomplete labels.
+ */
+function originDestinationSearchAttempts(fromR: Place, toR: Place): Array<{ from: string; to: string }> {
+  const attempts: Array<{ from: string; to: string }> = [];
+  const push = (from: string, to: string) => {
+    const f = from.trim();
+    const t = to.trim();
+    if (!f || !t) return;
+    if (attempts.some((a) => a.from === f && a.to === t)) return;
+    attempts.push({ from: f, to: t });
+  };
+
+  push(fromR.name, toR.name);
+  const fromHead = fromR.displayName?.split(",")[0]?.trim() ?? "";
+  const toHead = toR.displayName?.split(",")[0]?.trim() ?? "";
+  if (fromHead && toHead) push(fromHead, toHead);
+  if (fromHead) push(fromHead, toR.name);
+  if (toHead) push(fromR.name, toHead);
+  push(fromR.displayName || "", toR.displayName || "");
+  return attempts.filter((a) => a.from.length >= 2 && a.to.length >= 2);
+}
+
+/**
+ * Bookable Firebase trips that serve the passenger's origin → destination (not destination-only).
+ * Unions API results across hint pairs, de-duplicates, re-filters client-side, sorts by departure.
+ */
+async function searchBookableTripsMatchingRoute(
+  fromR: Place,
+  toR: Place,
+  travelDateKey?: string | null
+): Promise<TripSearchItem[]> {
+  const dayWindow = travelDateKeyToDepartureWindow(travelDateKey);
+  const attempts = originDestinationSearchAttempts(fromR, toR);
+  const byId = new Map<string, TripSearchItem>();
+  for (const q of attempts) {
+    try {
+      const { items } = await searchTrips({
+        from: q.from,
+        to: q.to,
+        limit: 100,
+        minSeats: 1,
+        ...(dayWindow ?? {}),
+      });
+      for (const t of items) {
+        if (!byId.has(t.id)) byId.set(t.id, t);
+      }
+    } catch (e) {
+      console.warn("[searchBusRoutes] trips/search (origin+destination) failed for", q, e);
+    }
+  }
+  return [...byId.values()]
+    .filter((t) => tripMatchesPassengerRoute(t, fromR, toR))
+    .sort((a, b) => (a.arrivalMins ?? 0) - (b.arrivalMins ?? 0));
+}
+
+function tripSearchItemToBusResult(
+  trip: TripSearchItem,
+  fromR: Place,
+  toR: Place,
   metrics: TripMetrics,
-  extra: Omit<BusResult, "durationMinutes" | "distanceKm" | "price" | "fareLKR" | "departureLabel" | "arrivingInMinutes">
+  index: number
 ): BusResult {
+  const routeId = trip.routeId?.trim() || "R-NA";
+  const shortRoute = trip.shortRouteId?.trim() || undefined;
+  const originStop: BusStop = {
+    id: `${trip.id}-o`,
+    name: trip.originStopName?.trim() || fromR.name,
+    lat: fromR.lat,
+    lon: fromR.lon,
+    routes: [routeId],
+  };
+  const destinationStop: BusStop = {
+    id: `${trip.id}-d`,
+    name: trip.destinationStopName?.trim() || toR.name,
+    lat: toR.lat,
+    lon: toR.lon,
+    routes: [routeId],
+  };
+
+  let type: BusResultType = "Cheapest";
+  if (index === 0) type = "Recommended";
+  else if (trip.express) type = "Express";
+
+  const arr = Math.max(0, trip.arrivalMins);
   return {
-    ...extra,
+    id: trip.id,
+    tripId: trip.id,
+    routeNumber: routeId,
+    shortRouteNumber: shortRoute,
+    routeName: trip.routeName,
+    originStop,
+    destinationStop,
     durationMinutes: metrics.estimatedMinutes,
     distanceKm: metrics.distanceKm,
-    price: metrics.fareLKR,
-    fareLKR: metrics.fareLKR,
-    arrivingInMinutes: metrics.arrivingInMinutes,
-    departureLabel: formatArrivingIn(metrics.arrivingInMinutes),
+    price: trip.price,
+    fareLKR: trip.price,
+    arrivingInMinutes: arr,
+    departureLabel: formatArrivingIn(Math.max(1, arr || 1)),
+    seatsAvailable: Math.max(0, trip.seatsLeft),
+    crowdLevel: computeCrowdLevel(Math.max(0, trip.seatsLeft)),
+    isExpress: Boolean(trip.express),
+    type,
   };
 }
 
@@ -244,6 +381,11 @@ export async function searchPlaces(query: string): Promise<Place[]> {
 }
 
 export async function getBusStopsNear(lat: number, lon: number, radiusMeters = 500): Promise<BusStop[]> {
+  const now = Date.now();
+  if (now < overpassCooldownUntil) {
+    return [];
+  }
+
   const query = `
 [out:json][timeout:25];
 (
@@ -253,50 +395,63 @@ export async function getBusStopsNear(lat: number, lon: number, radiusMeters = 5
 out body;
 `.trim();
 
-  return withRetry("overpass", async () => {
-    try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 25000);
-      const body = new URLSearchParams({ data: query }).toString();
-      const response = await fetch(OVERPASS_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
-        },
-        body,
-        signal: controller.signal,
-      });
-      clearTimeout(timeout);
-      if (!response.ok) throw new Error(`Overpass HTTP ${response.status}`);
-      const data = (await response.json()) as {
-        elements?: Array<{ id: number; lat: number; lon: number; tags?: Record<string, string> }>;
-      };
-      const map = new Map<string, BusStop>();
-      for (const node of data.elements ?? []) {
-        const id = String(node.id);
-        if (map.has(id)) continue;
-        const tags = node.tags ?? {};
-        const name = tags.name || tags.ref || `Stop ${id}`;
-        map.set(id, {
-          id,
-          name,
-          lat: Number(node.lat),
-          lon: Number(node.lon),
-          routes: parseRouteRefs(tags.route_ref),
-        });
-      }
-      return [...map.values()]
-        .sort((a, b) => distanceMeters(lat, lon, a.lat, a.lon) - distanceMeters(lat, lon, b.lat, b.lon))
-        .slice(0, 20);
-    } catch (error) {
-      if (error instanceof Error && /abort/i.test(error.message)) {
-        console.warn("[overpass] timeout when fetching bus stops");
-      } else {
-        console.warn("[overpass] getBusStopsNear failed", error);
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 25000);
+    const body = new URLSearchParams({ data: query }).toString();
+    const response = await fetch(OVERPASS_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+      },
+      body,
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+
+    if (response.status === 429) {
+      overpassCooldownUntil = Date.now() + OVERPASS_COOLDOWN_MS;
+      if (Date.now() - lastOverpass429LogAt >= OVERPASS_429_LOG_INTERVAL_MS) {
+        lastOverpass429LogAt = Date.now();
+        console.warn(
+          "[overpass] rate limited (HTTP 429). Bus-stop fallback paused ~90s; bookable trips from Firebase still work."
+        );
       }
       return [];
     }
-  });
+
+    if (!response.ok) {
+      throw new Error(`Overpass HTTP ${response.status}`);
+    }
+
+    const data = (await response.json()) as {
+      elements?: Array<{ id: number; lat: number; lon: number; tags?: Record<string, string> }>;
+    };
+    const map = new Map<string, BusStop>();
+    for (const node of data.elements ?? []) {
+      const id = String(node.id);
+      if (map.has(id)) continue;
+      const tags = node.tags ?? {};
+      const name = tags.name || tags.ref || `Stop ${id}`;
+      map.set(id, {
+        id,
+        name,
+        lat: Number(node.lat),
+        lon: Number(node.lon),
+        routes: parseRouteRefs(tags.route_ref),
+      });
+    }
+    return [...map.values()]
+      .sort((a, b) => distanceMeters(lat, lon, a.lat, a.lon) - distanceMeters(lat, lon, b.lat, b.lon))
+      .slice(0, 20);
+  } catch (error) {
+    if (error instanceof Error && /abort/i.test(error.message)) {
+      console.warn("[overpass] timeout when fetching bus stops");
+    } else if (!(error instanceof Error && /Overpass HTTP 429/.test(error.message))) {
+      console.warn("[overpass] getBusStopsNear failed", error);
+    }
+    return [];
+  }
 }
 
 export async function getJourney(fromLat: number, fromLon: number, toLat: number, toLon: number): Promise<Journey | null> {
@@ -336,76 +491,23 @@ export async function getJourney(fromLat: number, fromLon: number, toLat: number
   });
 }
 
-export async function searchBusRoutes(fromPlace: Place, toPlace: Place): Promise<BusResult[]> {
+export type SearchBusRoutesOptions = {
+  /** `YYYY-MM-DD` — only trips departing on that calendar day (Asia/Colombo). */
+  travelDateKey?: string | null;
+};
+
+/** Only scheduled trips from the API/Firebase; no OSM Overpass or synthetic buses. */
+export async function searchBusRoutes(
+  fromPlace: Place,
+  toPlace: Place,
+  options?: SearchBusRoutesOptions
+): Promise<BusResult[]> {
   const [fromR, toR] = await Promise.all([resolvePlaceCoordinates(fromPlace), resolvePlaceCoordinates(toPlace)]);
+  const firebaseTrips = await searchBookableTripsMatchingRoute(fromR, toR, options?.travelDateKey);
+  if (firebaseTrips.length === 0) {
+    return [];
+  }
   const seed = `${fromR.id}|${toR.id}`;
-
   const metrics = await resolveTripMetrics(fromR, toR, seed);
-
-  const [originStops, destinationStops] = await Promise.all([
-    getBusStopsNear(fromR.lat, fromR.lon, 600),
-    getBusStopsNear(toR.lat, toR.lon, 600),
-  ]);
-
-  const routeMatches: BusResult[] = [];
-  for (const fromStop of originStops) {
-    for (const toStop of destinationStops) {
-      const common = fromStop.routes.filter((route) => toStop.routes.includes(route));
-      for (const routeNumber of common) {
-        const id = `${routeNumber}-${fromStop.id}-${toStop.id}`;
-        const seatsAvailable = 0;
-        const isExpress = /e/i.test(routeNumber) || metrics.distanceKm > 20;
-        routeMatches.push(
-          buildBusResultBase(metrics, {
-            id,
-            routeNumber,
-            routeName: `${fromStop.name} → ${toStop.name}`,
-            originStop: fromStop,
-            destinationStop: toStop,
-            seatsAvailable,
-            crowdLevel: computeCrowdLevel(seatsAvailable),
-            isExpress,
-            type: isExpress ? "Express" : "Recommended",
-          })
-        );
-      }
-    }
-  }
-
-  if (routeMatches.length) {
-    return routeMatches
-      .sort((a, b) => a.durationMinutes - b.durationMinutes)
-      .map((item, idx) => (idx === 0 ? { ...item, type: "Recommended" } : item));
-  }
-
-  const fallbackOrigin: BusStop = originStops[0] ?? {
-    id: "origin-fallback",
-    name: fromR.name,
-    lat: fromR.lat,
-    lon: fromR.lon,
-    routes: [],
-  };
-  const fallbackDestination: BusStop = destinationStops[0] ?? {
-    id: "destination-fallback",
-    name: toR.name,
-    lat: toR.lat,
-    lon: toR.lon,
-    routes: [],
-  };
-
-  const fallbackId = `fallback-${fromR.id}-${toR.id}`;
-  const seatsAvailable = randomSeats(fallbackId);
-  return [
-    buildBusResultBase(metrics, {
-      id: fallbackId,
-      routeNumber: "N/A",
-      routeName: `${fromR.name} → ${toR.name}`,
-      originStop: fallbackOrigin,
-      destinationStop: fallbackDestination,
-      seatsAvailable,
-      crowdLevel: computeCrowdLevel(seatsAvailable),
-      isExpress: metrics.distanceKm > 20,
-      type: "Recommended",
-    }),
-  ];
+  return firebaseTrips.map((trip, index) => tripSearchItemToBusResult(trip, fromR, toR, metrics, index));
 }

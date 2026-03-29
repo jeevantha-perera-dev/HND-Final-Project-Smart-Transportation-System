@@ -11,9 +11,11 @@ const listQuerySchema = z.object({
 });
 
 function serializeRoute(data: DocumentData, docId: string) {
+  const shortRouteId = String(data.shortRouteId ?? "").trim();
   return {
     id: docId,
     routeId: String(data.routeId ?? ""),
+    shortRouteId: shortRouteId || undefined,
     routeName: String(data.routeName ?? ""),
     origin: String(data.origin ?? ""),
     destination: String(data.destination ?? ""),
@@ -44,6 +46,7 @@ routesCatalogRouter.get(
       items = items.filter(
         (r) =>
           r.routeId.toLowerCase().includes(needle) ||
+          (r.shortRouteId && r.shortRouteId.toLowerCase().includes(needle)) ||
           r.routeName.toLowerCase().includes(needle) ||
           r.origin.toLowerCase().includes(needle) ||
           r.destination.toLowerCase().includes(needle)

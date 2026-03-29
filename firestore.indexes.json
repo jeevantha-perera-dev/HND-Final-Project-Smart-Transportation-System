@@ -49,6 +49,14 @@
         { "fieldPath": "routeId", "order": "ASCENDING" },
         { "fieldPath": "passengerType", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "walletTransactions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "walletId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

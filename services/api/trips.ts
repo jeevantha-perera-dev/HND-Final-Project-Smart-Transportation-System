@@ -3,6 +3,8 @@ import { apiRequest } from "./client";
 export type TripSearchItem = {
   id: string;
   routeId: string;
+  /** Compact code for passenger UI (e.g. C06); omit when unset. */
+  shortRouteId?: string;
   routeName: string;
   express: boolean;
   vehicleCode: string;
@@ -57,6 +59,7 @@ export type TripDetail = {
   id: string;
   routeName: string;
   routeCode: string;
+  shortRouteId?: string;
   vehicleCode: string;
   seatsAvailable: number;
   baseFare: number;

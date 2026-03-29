@@ -18,6 +18,8 @@ export type PassengerHomeStackParamList = {
         to?: string;
         fromPlace?: Place;
         toPlace?: Place;
+        /** `YYYY-MM-DD` from route search; filters trips to that travel day (Colombo). */
+        travelDateKey?: string;
         initialResults?: BusResult[];
         initialError?: string | null;
       }
@@ -52,7 +54,7 @@ export type PassengerWalletStackParamList = {
 
 export type PassengerRootStackParamList = {
   MainTabs: NavigatorScreenParams<PassengerTabsParamList> | undefined;
-  QRTicket: undefined;
+  QRTicket: { bookingId?: string } | undefined;
   RateTrip: undefined;
   LiveTracking: undefined;
   CalendarPicker: { selectedDate?: string } | undefined;

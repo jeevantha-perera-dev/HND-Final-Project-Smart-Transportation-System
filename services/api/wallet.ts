@@ -1,7 +1,15 @@
 import { apiRequest } from "./client";
 
+export type WalletResponse = {
+  id: string;
+  balance: number;
+  transitPoints?: number;
+  rewards: Array<{ id?: string; title?: string; progress?: number; label?: string }>;
+  vouchers: unknown[];
+};
+
 export async function getWallet() {
-  return apiRequest<{ id: string; balance: number; rewards: any[]; vouchers: any[] }>("/wallet", {
+  return apiRequest<WalletResponse>("/wallet", {
     auth: true,
   });
 }

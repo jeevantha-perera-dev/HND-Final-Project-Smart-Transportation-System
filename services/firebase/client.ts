@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getApp, getApps, initializeApp } from "firebase/app";
 import { connectAuthEmulator, getAuth, getReactNativePersistence, initializeAuth, type Auth } from "firebase/auth";
+import { connectFirestoreEmulator, getFirestore, type Firestore } from "firebase/firestore";
 import { connectStorageEmulator, getStorage, type FirebaseStorage } from "firebase/storage";
 
 const firebaseConfig = {
@@ -13,6 +14,17 @@ const firebaseConfig = {
 };
 
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+
+const db: Firestore = getFirestore(app);
+const rawFirestoreHost = process.env.EXPO_PUBLIC_FIRESTORE_EMULATOR_HOST?.trim();
+const firestoreGlobal = globalThis as typeof globalThis & { __firestoreEmulatorConnected?: boolean };
+if (rawFirestoreHost && __DEV__ && !firestoreGlobal.__firestoreEmulatorConnected) {
+  const hasPort = rawFirestoreHost.includes(":");
+  const host = hasPort ? rawFirestoreHost.split(":")[0]! : rawFirestoreHost;
+  const port = hasPort ? Number(rawFirestoreHost.split(":")[1]) || 8080 : 8080;
+  connectFirestoreEmulator(db, host, port);
+  firestoreGlobal.__firestoreEmulatorConnected = true;
+}
 
 let auth: Auth;
 try {
@@ -62,6 +74,9 @@ if (__DEV__) {
   if (STORAGE_EMULATOR_HOST) {
     console.log("🔥 Storage emulator:", STORAGE_EMULATOR_HOST, STORAGE_EMULATOR_PORT);
   }
+  if (rawFirestoreHost) {
+    console.log("🔥 Firestore emulator:", rawFirestoreHost);
+  }
 }
 
-export { app, auth, storage };
+export { app, auth, db, storage };

@@ -28,7 +28,10 @@ export type BusResult = {
   id: string;
   /** Firestore trips doc id when resolved via API; null/undefined if not bookable. */
   tripId?: string | null;
+  /** Full route number from trips API (matches fares / route catalog). */
   routeNumber: string;
+  /** Shorter display code when backend provides `shortRouteId` on the trip. */
+  shortRouteNumber?: string;
   routeName: string;
   originStop: BusStop;
   destinationStop: BusStop;

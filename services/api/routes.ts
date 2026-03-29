@@ -3,6 +3,7 @@ import { apiRequest } from "./client";
 export type CatalogRoute = {
   id: string;
   routeId: string;
+  shortRouteId?: string;
   routeName: string;
   origin: string;
   destination: string;

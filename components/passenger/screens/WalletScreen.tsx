@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { PassengerWalletStackParamList } from "../types";
+import { ApiError } from "../../../services/api/client";
 import { getWallet, getWalletHistory } from "../../../services/api/wallet";
 
 type Props = NativeStackScreenProps<PassengerWalletStackParamList, "WalletMain">;
@@ -33,92 +34,103 @@ type ActivityRow = {
   icon: "bus" | "arrow-up" | "gift";
 };
 
-const REWARDS = [
-  {
-    id: "1",
-    title: "Free Weekly Pass",
-    progress: 0.85,
-    label: "85% Completed",
-    icon: "bus" as const,
-    iconBg: SKY,
-  },
-  {
-    id: "2",
-    title: "Cashback Booster",
-    progress: 0.4,
-    label: "40% Completed",
-    icon: "flash" as const,
-    iconBg: "#34C759",
-  },
-] as const;
+type RewardCard = {
+  id: string;
+  title: string;
+  progress: number;
+  label: string;
+  icon: "bus" | "flash";
+  iconBg: string;
+};
 
-const ACTIVITY: ActivityRow[] = [
-  {
-    id: "a1",
-    title: "Route 42 - Downtown",
-    time: "Today, 09:45 AM",
-    amount: "-2.50",
-    tone: "blue" as const,
-    icon: "bus" as const,
-  },
-  {
-    id: "a2",
-    title: "Wallet Top-up",
-    time: "Yesterday, 4:12 PM",
-    amount: "+50.00",
-    tone: "green" as const,
-    icon: "arrow-up" as const,
-  },
-  {
-    id: "a3",
-    title: "Monthly Loyalty Reward",
-    time: "Mon, 18 Mar",
-    amount: "+5.00",
-    tone: "orange" as const,
-    icon: "gift" as const,
-  },
-  {
-    id: "a4",
-    title: "Route 105-Express",
-    time: "Mon, 21,Oct",
-    amount: "-4.75",
-    tone: "blue" as const,
-    icon: "bus" as const,
-  },
-  {
-    id: "a5",
-    title: "Transfer to J.Smith",
-    time: "Mon, 20,Oct",
-    amount: "-12.00",
-    tone: "green" as const,
-    icon: "arrow-up" as const,
-  },
-];
+function historyItemToActivity(item: {
+  id?: string;
+  type?: string;
+  reference?: string;
+  amount?: number;
+  createdAt?: string;
+}): ActivityRow {
+  const amt = Number(item.amount ?? 0);
+  const type = String(item.type ?? "");
+  let title = String(item.reference ?? "Wallet transaction");
+  if (type === "TOPUP") title = "Wallet top-up";
+  else if (type === "TRANSFER_OUT") title = "Transfer sent";
+  else if (type === "TRANSFER_IN") title = "Transfer received";
+  else if (type === "PAYMENT") title = "Trip payment";
+
+  const tone: ActivityRow["tone"] = amt >= 0 ? "green" : "blue";
+  const icon: ActivityRow["icon"] =
+    type === "TOPUP" || type === "TRANSFER_IN" ? "arrow-up" : type === "PAYMENT" ? "bus" : "arrow-up";
+
+  return {
+    id: String(item.id ?? `tx-${item.createdAt}`),
+    title,
+    time: new Date(item.createdAt ?? Date.now()).toLocaleString(),
+    amount: amt >= 0 ? `+LKR ${amt.toFixed(2)}` : `LKR ${amt.toFixed(2)}`,
+    tone,
+    icon,
+  };
+}
+
+function rewardsFromWallet(
+  rewards: Array<{ id?: string; title?: string; progress?: number; label?: string }>
+): RewardCard[] {
+  return rewards
+    .filter((r) => r.title?.trim())
+    .map((r, i) => {
+      const p = typeof r.progress === "number" && Number.isFinite(r.progress) ? Math.min(1, Math.max(0, r.progress)) : 0;
+      return {
+        id: String(r.id ?? `rw-${i}`),
+        title: String(r.title),
+        progress: p,
+        label: r.label?.trim() || `${Math.round(p * 100)}% completed`,
+        icon: i % 2 === 0 ? "bus" : "flash",
+        iconBg: i % 2 === 0 ? SKY : "#34C759",
+      };
+    });
+}
 
 export default function WalletScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const tabBarPad = 72;
-  const [balance, setBalance] = useState(428.5);
-  const [activity, setActivity] = useState<ActivityRow[]>(ACTIVITY);
+  const [balance, setBalance] = useState<number | null>(null);
+  const [transitPoints, setTransitPoints] = useState<number | null>(null);
+  const [rewards, setRewards] = useState<RewardCard[]>([]);
+  const [activity, setActivity] = useState<ActivityRow[]>([]);
+  const [walletLoading, setWalletLoading] = useState(true);
+  const [walletError, setWalletError] = useState<string | null>(null);
 
   const loadWalletData = useCallback(async (isActive: () => boolean) => {
+    setWalletLoading(true);
+    setWalletError(null);
     try {
       const wallet = await getWallet();
-      const history = await getWalletHistory();
       if (!isActive()) return;
       setBalance(wallet.balance);
-      setActivity(
-        history.items.slice(0, 5).map((item, idx) => ({
-          id: item.id ?? `h-${idx}`,
-          title: item.reference ?? "Wallet transaction",
-          time: new Date(item.createdAt ?? Date.now()).toLocaleString(),
-          amount: Number(item.amount) >= 0 ? `+${Number(item.amount).toFixed(2)}` : `${Number(item.amount).toFixed(2)}`,
-          tone: Number(item.amount) >= 0 ? "green" : "blue",
-          icon: Number(item.amount) >= 0 ? "arrow-up" : "bus",
-        }))
-      );
+      setTransitPoints(typeof wallet.transitPoints === "number" ? wallet.transitPoints : 0);
+      setRewards(rewardsFromWallet(wallet.rewards ?? []));
+    } catch (e) {
+      if (!isActive()) return;
+      const msg =
+        e instanceof ApiError && e.status === 401
+          ? "Please log in to view your wallet."
+          : e instanceof Error
+            ? e.message
+            : "Could not load wallet.";
+      setWalletError(msg);
+      setBalance(null);
+      setTransitPoints(null);
+      setRewards([]);
+    }
+
+    try {
+      const history = await getWalletHistory();
+      if (!isActive()) return;
+      setActivity(history.items.slice(0, 5).map((item) => historyItemToActivity(item)));
     } catch {
-      // keep existing mock display when backend is unavailable
+      if (isActive()) setActivity([]);
+    } finally {
+      if (isActive()) setWalletLoading(false);
     }
   }, []);
 
@@ -154,7 +166,14 @@ export default function WalletScreen({ navigation }: Props) {
             <View style={styles.balanceTop}>
               <View>
                 <Text style={styles.balanceLabel}>CURRENT BALANCE</Text>
-                <Text style={styles.balanceAmount}>${balance.toFixed(2)}</Text>
+                <Text style={styles.balanceAmount}>
+                  {walletLoading
+                    ? "…"
+                    : walletError
+                      ? "—"
+                      : `LKR ${(balance ?? 0).toFixed(2)}`}
+                </Text>
+                {walletError ? <Text style={styles.balanceError}>{walletError}</Text> : null}
               </View>
               <Ionicons name="wallet-outline" size={28} color="#0A1628" />
             </View>
@@ -163,7 +182,9 @@ export default function WalletScreen({ navigation }: Props) {
                 <Text style={styles.pointsLabel}>TransitFlow Points</Text>
                 <View style={styles.pointsRow}>
                   <View style={styles.coinIcon} />
-                  <Text style={styles.pointsValue}>1,240 pts</Text>
+                  <Text style={styles.pointsValue}>
+                    {walletLoading ? "…" : `${(transitPoints ?? 0).toLocaleString()} pts`}
+                  </Text>
                 </View>
               </View>
               <View style={styles.decorCircles}>
@@ -188,34 +209,38 @@ export default function WalletScreen({ navigation }: Props) {
             </Pressable>
           </View>
 
-          <View style={styles.sectionHead}>
-            <View style={styles.sectionHeadLeft}>
-              <Ionicons name="trending-up" size={18} color={SKY} />
-              <Text style={styles.sectionTitle}>Earned Rewards</Text>
-            </View>
-            <Pressable onPress={() => navigation.navigate("Rewards")}>
-              <Text style={styles.link}>View All</Text>
-            </Pressable>
-          </View>
-
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.rewardsScroll}
-          >
-            {REWARDS.map((r) => (
-              <View key={r.id} style={styles.rewardCard}>
-                <View style={[styles.rewardIconBox, { backgroundColor: r.iconBg }]}>
-                  <Ionicons name={r.icon} size={18} color="#FFFFFF" />
+          {rewards.length > 0 ? (
+            <>
+              <View style={styles.sectionHead}>
+                <View style={styles.sectionHeadLeft}>
+                  <Ionicons name="trending-up" size={18} color={SKY} />
+                  <Text style={styles.sectionTitle}>Earned Rewards</Text>
                 </View>
-                <Text style={styles.rewardTitle}>{r.title}</Text>
-                <View style={styles.progressTrack}>
-                  <View style={[styles.progressFill, { width: `${r.progress * 100}%` }]} />
-                </View>
-                <Text style={styles.progressLabel}>{r.label}</Text>
+                <Pressable onPress={() => navigation.navigate("Rewards")}>
+                  <Text style={styles.link}>View All</Text>
+                </Pressable>
               </View>
-            ))}
-          </ScrollView>
+
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.rewardsScroll}
+              >
+                {rewards.map((r) => (
+                  <View key={r.id} style={styles.rewardCard}>
+                    <View style={[styles.rewardIconBox, { backgroundColor: r.iconBg }]}>
+                      <Ionicons name={r.icon} size={18} color="#FFFFFF" />
+                    </View>
+                    <Text style={styles.rewardTitle}>{r.title}</Text>
+                    <View style={styles.progressTrack}>
+                      <View style={[styles.progressFill, { width: `${r.progress * 100}%` }]} />
+                    </View>
+                    <Text style={styles.progressLabel}>{r.label}</Text>
+                  </View>
+                ))}
+              </ScrollView>
+            </>
+          ) : null}
 
           <View style={styles.sectionHead}>
             <View style={styles.sectionHeadLeft}>
@@ -228,6 +253,11 @@ export default function WalletScreen({ navigation }: Props) {
           </View>
 
           <View style={styles.activityCard}>
+            {!walletLoading && activity.length === 0 ? (
+              <Text style={styles.activityEmpty}>
+                {walletError ? "Activity will appear after your wallet loads." : "No wallet activity yet."}
+              </Text>
+            ) : null}
             {activity.map((row, i) => (
               <View key={row.id}>
                 {i > 0 ? <View style={styles.activityDivider} /> : null}
@@ -311,6 +341,13 @@ const styles = StyleSheet.create({
     fontSize: 36,
     fontWeight: "900",
     letterSpacing: -0.5,
+  },
+  balanceError: {
+    color: "#5C2A2A",
+    fontSize: 12,
+    fontWeight: "700",
+    marginTop: 8,
+    maxWidth: 260,
   },
   balanceBottom: {
     flexDirection: "row",
@@ -407,6 +444,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#2C2C2E",
     overflow: "hidden",
+  },
+  activityEmpty: {
+    color: MUTED,
+    fontSize: 14,
+    fontWeight: "600",
+    paddingHorizontal: 14,
+    paddingVertical: 20,
+    textAlign: "center",
   },
   activityRow: {
     flexDirection: "row",

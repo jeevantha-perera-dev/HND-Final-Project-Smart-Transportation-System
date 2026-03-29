@@ -4,18 +4,20 @@ import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { PassengerWalletStackParamList } from "../types";
+import { ApiError } from "../../../services/api/client";
 import { getWallet, topupWallet } from "../../../services/api/wallet";
 
 type Props = NativeStackScreenProps<PassengerWalletStackParamList, "AddMoney">;
 
-const QUICK_AMOUNTS = [10, 25, 50, 100] as const;
+const QUICK_AMOUNTS = [10, 25, 50, 100, 500, 1000] as const;
 
 export default function AddMoneyScreen({ navigation }: Props) {
   const [selectedAmount, setSelectedAmount] = useState<number>(50);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const [balance, setBalance] = useState<number>(428.5);
+  const [balance, setBalance] = useState<number | null>(null);
   const [balanceLoaded, setBalanceLoaded] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -24,8 +26,11 @@ export default function AddMoneyScreen({ navigation }: Props) {
         const wallet = await getWallet();
         if (!mounted) return;
         setBalance(wallet.balance);
-      } catch {
-        // keep fallback balance when API is unavailable
+        setLoadError(null);
+      } catch (e) {
+        if (!mounted) return;
+        setBalance(null);
+        setLoadError(e instanceof ApiError ? e.message : "Could not load wallet balance.");
       } finally {
         if (mounted) setBalanceLoaded(true);
       }
@@ -38,9 +43,11 @@ export default function AddMoneyScreen({ navigation }: Props) {
   async function handleTopup() {
     try {
       setSubmitting(true);
+      setMessage(null);
       const result = await topupWallet(selectedAmount);
       setBalance(result.balance);
-      setMessage(`Top-up success. New balance: $${result.balance.toFixed(2)}`);
+      setLoadError(null);
+      setMessage(`Top-up successful. New balance: LKR ${result.balance.toFixed(2)}`);
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Top-up failed");
     } finally {
@@ -61,8 +68,11 @@ export default function AddMoneyScreen({ navigation }: Props) {
 
         <View style={styles.balanceCard}>
           <Text style={styles.balanceLabel}>Wallet Balance</Text>
-          <Text style={styles.balanceValue}>{balanceLoaded ? `$${balance.toFixed(2)}` : "Loading..."}</Text>
-          <Text style={styles.balanceHint}>Instant top-up with secure payment methods.</Text>
+          <Text style={styles.balanceValue}>
+            {!balanceLoaded ? "Loading…" : loadError ? "—" : `LKR ${(balance ?? 0).toFixed(2)}`}
+          </Text>
+          {loadError ? <Text style={styles.loadError}>{loadError}</Text> : null}
+          <Text style={styles.balanceHint}>Balance is stored on your account (Firebase). Top-ups update instantly.</Text>
         </View>
 
         <Text style={styles.sectionTitle}>Select Amount</Text>
@@ -75,7 +85,9 @@ export default function AddMoneyScreen({ navigation }: Props) {
                 style={[styles.amountChip, active && styles.amountChipActive]}
                 onPress={() => setSelectedAmount(amount)}
               >
-                <Text style={[styles.amountText, active && styles.amountTextActive]}>${amount}</Text>
+                <Text style={[styles.amountText, active && styles.amountTextActive]}>
+                  LKR {amount.toLocaleString()}
+                </Text>
               </Pressable>
             );
           })}
@@ -113,7 +125,7 @@ export default function AddMoneyScreen({ navigation }: Props) {
         <Pressable style={styles.cta} onPress={handleTopup} disabled={submitting}>
           <Ionicons name="add-circle-outline" size={18} color="#041120" />
           <Text style={styles.ctaText}>
-            {submitting ? "Processing..." : `Add $${selectedAmount}.00`}
+            {submitting ? "Processing…" : `Add LKR ${selectedAmount.toFixed(0)}`}
           </Text>
         </Pressable>
       </ScrollView>
@@ -131,6 +143,7 @@ const styles = StyleSheet.create({
   balanceLabel: { color: "#9FB4CB", fontSize: 12, fontWeight: "700" },
   balanceValue: { color: "#F1F8FF", fontSize: 32, fontWeight: "900", marginTop: 4 },
   balanceHint: { color: "#8EA3BA", fontSize: 12, marginTop: 4 },
+  loadError: { color: "#FF8A8A", fontSize: 12, fontWeight: "600", marginTop: 6 },
   sectionTitle: { color: "#DCE9F8", fontSize: 14, fontWeight: "800", marginBottom: 10, marginTop: 4 },
   amountGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 16 },
   amountChip: { width: "47%", borderRadius: 12, backgroundColor: "#121D2B", borderWidth: 1, borderColor: "#25374C", paddingVertical: 16, alignItems: "center" },
