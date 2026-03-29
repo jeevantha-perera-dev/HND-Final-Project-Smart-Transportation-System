@@ -5,6 +5,9 @@ export type AppUser = {
   fullName: string;
   email: string;
   role: "PASSENGER" | "DRIVER" | "ADMIN";
+  phone?: string | null;
+  createdAt?: string;
+  photoUrl?: string | null;
 };
 
 type SessionState = {

@@ -1,42 +1,151 @@
-import React from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  ActivityIndicator,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { ApiError } from "../../services/api/client";
+import {
+  getDriverTripStats,
+  getMyTripHistory,
+  type DriverHistoryTrip,
+} from "../../services/api/trips";
+
+function startOfCurrentMonth(): Date {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), 1);
+}
+
+function endOfCurrentMonthExclusive(): Date {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth() + 1, 1);
+}
+
+function daysLookbackForCurrentMonth(): number {
+  const spanMs = Date.now() - startOfCurrentMonth().getTime();
+  return Math.min(366, Math.max(1, Math.ceil(spanMs / 86400000) + 2));
+}
+
+function isCompletedThisMonth(trip: DriverHistoryTrip): boolean {
+  if (trip.status.toLowerCase() !== "completed" || !trip.completedAt) return false;
+  const t = new Date(trip.completedAt).getTime();
+  return t >= startOfCurrentMonth().getTime() && t < endOfCurrentMonthExclusive().getTime();
+}
+
+function formatCompletedShort(iso: string) {
+  try {
+    return new Date(iso).toLocaleString("en-LK", {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return iso;
+  }
+}
+
+function currentMonthTitle(): string {
+  return new Date().toLocaleString("en-LK", { month: "long", year: "numeric" });
+}
 
 export default function DriverPerformanceScreen() {
-  const chartBars = [52, 63, 47, 74, 86, 69, 41];
+  const insets = useSafeAreaInsets();
+  const [stats, setStats] = useState<{ totalTrips: number; tripsLast7Days: number; earningsEstimateLKR: number } | null>(
+    null
+  );
+  const [loading, setLoading] = useState(true);
+
+  const [monthlyOpen, setMonthlyOpen] = useState(false);
+  const [monthlyRows, setMonthlyRows] = useState<DriverHistoryTrip[]>([]);
+  const [monthlyLoading, setMonthlyLoading] = useState(false);
+  const [monthlyError, setMonthlyError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let m = true;
+    (async () => {
+      try {
+        const s = await getDriverTripStats();
+        if (m) setStats(s);
+      } catch {
+        if (m) setStats(null);
+      } finally {
+        if (m) setLoading(false);
+      }
+    })();
+    return () => {
+      m = false;
+    };
+  }, []);
+
+  const loadMonthlyTrips = useCallback(async () => {
+    setMonthlyLoading(true);
+    setMonthlyError(null);
+    try {
+      const { items } = await getMyTripHistory({ days: daysLookbackForCurrentMonth() });
+      const rows = items.filter(isCompletedThisMonth).sort((a, b) => {
+        const ta = new Date(a.completedAt ?? 0).getTime();
+        const tb = new Date(b.completedAt ?? 0).getTime();
+        return tb - ta;
+      });
+      setMonthlyRows(rows);
+    } catch (e) {
+      setMonthlyRows([]);
+      setMonthlyError(e instanceof ApiError ? e.message : "Could not load trip history.");
+    } finally {
+      setMonthlyLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!monthlyOpen) return;
+    void loadMonthlyTrips();
+  }, [monthlyOpen, loadMonthlyTrips]);
+
+  const monthlyTotalLkr = useMemo(
+    () => monthlyRows.reduce((sum, t) => sum + (Number(t.tripEarningsLkr) || 0), 0),
+    [monthlyRows]
+  );
+
   const chartDays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-  const sessions = [
-    {
-      id: "fri",
-      day: "FRI",
-      date: "12",
-      title: "Friday Session",
-      subtitle: "18 Trips . 8.2h Online",
-      earning: "+$220.00",
-      rateLabel: "Incentive $40",
-      accent: "#49E18F",
-    },
-    {
-      id: "thu",
-      day: "THU",
-      date: "11",
-      title: "Thursday Session",
-      subtitle: "16 Trips . 7.5h Online",
-      earning: "+$195.00",
-      rateLabel: "Standard Rate",
-      accent: "#69AFFF",
-    },
-    {
-      id: "wed",
-      day: "WED",
-      date: "10",
-      title: "Wednesday Session",
-      subtitle: "10 Trips . 6.0h Online",
-      earning: "+$130.00",
-      rateLabel: "Standard Rate",
-      accent: "#69AFFF",
-    },
-  ];
+  const chartBars = useMemo(() => {
+    const base = stats?.tripsLast7Days ?? 0;
+    const seed = [0.6, 0.75, 0.5, 0.9, 1, 0.8, 0.45];
+    return seed.map((f) => Math.max(12, Math.round(base * f * 8 + 20)));
+  }, [stats?.tripsLast7Days]);
+
+  const sessions = useMemo(() => {
+    if (!stats) return [];
+    return [
+      {
+        id: "wk",
+        day: "7D",
+        date: "•",
+        title: "Last 7 days",
+        subtitle: `${stats.tripsLast7Days} scheduled trips`,
+        earning: `LKR ${stats.earningsEstimateLKR.toFixed(0)}`,
+        rateLabel: "Estimated (wallet integration pending)",
+        accent: "#49E18F",
+      },
+      {
+        id: "all",
+        day: "ALL",
+        date: "•",
+        title: "All time (as driver)",
+        subtitle: `${stats.totalTrips} trips in Firestore`,
+        earning: "LKR —",
+        rateLabel: "Sri Lanka · LKR only",
+        accent: "#69AFFF",
+      },
+    ];
+  }, [stats]);
 
   return (
     <ScrollView
@@ -46,26 +155,34 @@ export default function DriverPerformanceScreen() {
     >
       <View style={styles.weeklyCard}>
         <View style={styles.weeklyHeader}>
-          <Text style={styles.weeklyCaption}>This Week&apos;s Earnings</Text>
+          <Text style={styles.weeklyCaption}>Driver summary (live)</Text>
           <View style={styles.growthChip}>
-            <Text style={styles.growthText}>+12.5%</Text>
+            <Text style={styles.growthText}>LKR</Text>
           </View>
         </View>
-        <Text style={styles.weeklyAmount}>$1,128.50</Text>
+        {loading ? (
+          <View style={styles.loadingRow}>
+            <ActivityIndicator color="#0B2A48" />
+          </View>
+        ) : (
+          <Text style={styles.weeklyAmount}>
+            {stats ? `LKR ${stats.earningsEstimateLKR.toFixed(0)}` : "LKR —"}
+          </Text>
+        )}
         <View style={styles.weeklyDivider} />
         <View style={styles.metricRow}>
           <View>
-            <Text style={styles.metricLabel}>TRIPS COMPLETED</Text>
+            <Text style={styles.metricLabel}>TRIPS (7 DAYS)</Text>
             <View style={styles.metricValueRow}>
               <Ionicons name="bus-outline" size={14} color="#28548A" />
-              <Text style={styles.metricValue}>93</Text>
+              <Text style={styles.metricValue}>{stats?.tripsLast7Days ?? "—"}</Text>
             </View>
           </View>
           <View>
-            <Text style={styles.metricLabel}>AVG. RATING</Text>
+            <Text style={styles.metricLabel}>TOTAL AS DRIVER</Text>
             <View style={styles.metricValueRow}>
               <Ionicons name="shield-checkmark-outline" size={14} color="#28548A" />
-              <Text style={styles.metricValue}>4.92</Text>
+              <Text style={styles.metricValue}>{stats?.totalTrips ?? "—"}</Text>
             </View>
           </View>
         </View>
@@ -75,7 +192,7 @@ export default function DriverPerformanceScreen() {
         <View style={styles.chartHeader}>
           <View>
             <Text style={styles.chartTitle}>Earnings Trend</Text>
-            <Text style={styles.chartSubtitle}>Daily income vs target</Text>
+            <Text style={styles.chartSubtitle}>Relative activity (placeholder shape)</Text>
           </View>
           <View style={styles.filterChip}>
             <Text style={styles.filterText}>Last 7 Days</Text>
@@ -102,23 +219,26 @@ export default function DriverPerformanceScreen() {
           <View style={[styles.kpiIconWrap, { backgroundColor: "#DCE7F8" }]}>
             <Ionicons name="time-outline" size={18} color="#4A66A5" />
           </View>
-          <Text style={styles.kpiLabel}>HOURS ONLINE</Text>
-          <Text style={styles.kpiValue}>38.5h</Text>
-          <Text style={styles.kpiHint}>On Track</Text>
+          <Text style={styles.kpiLabel}>LAST 7 DAYS</Text>
+          <Text style={styles.kpiValue}>{stats?.tripsLast7Days ?? "—"}</Text>
+          <Text style={styles.kpiHint}>Firestore trips</Text>
         </View>
         <View style={styles.kpiCard}>
           <View style={[styles.kpiIconWrap, { backgroundColor: "#DCF6E8" }]}>
             <Ionicons name="checkmark-circle-outline" size={18} color="#2C8E59" />
           </View>
-          <Text style={styles.kpiLabel}>ACCEPT RATE</Text>
-          <Text style={styles.kpiValue}>98%</Text>
-          <Text style={styles.kpiHint}>+2% vs LW</Text>
+          <Text style={styles.kpiLabel}>ALL TRIPS</Text>
+          <Text style={styles.kpiValue}>{stats?.totalTrips ?? "—"}</Text>
+          <Text style={styles.kpiHint}>With your driver id</Text>
         </View>
       </View>
 
       <Text style={styles.sectionTitle}>Daily Activity</Text>
 
       <View style={styles.activityWrap}>
+        {!sessions.length && !loading ? (
+          <Text style={styles.emptyHint}>Sign in as a driver and schedule trips to see history here.</Text>
+        ) : null}
         {sessions.map((session) => (
           <Pressable key={session.id} style={styles.activityCard}>
             <View style={[styles.activityAccent, { backgroundColor: session.accent }]} />
@@ -141,9 +261,80 @@ export default function DriverPerformanceScreen() {
         ))}
       </View>
 
-      <Pressable style={styles.historyButton}>
+      <Pressable style={styles.historyButton} onPress={() => setMonthlyOpen(true)}>
         <Text style={styles.historyButtonText}>View Monthly History</Text>
       </Pressable>
+
+      <Modal visible={monthlyOpen} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setMonthlyOpen(false)}>
+        <View style={[styles.modalScreen, { paddingTop: Math.max(insets.top, 12) }]}>
+          <View style={styles.modalHeader}>
+            <View style={styles.modalTitleBlock}>
+              <Text style={styles.modalTitle}>Trip earnings</Text>
+              <Text style={styles.modalSubtitle}>{currentMonthTitle()} · each completed trip</Text>
+            </View>
+            <Pressable
+              style={styles.modalClose}
+              onPress={() => setMonthlyOpen(false)}
+              hitSlop={12}
+            >
+              <Ionicons name="close" size={26} color="#D8E6F4" />
+            </Pressable>
+          </View>
+
+          {monthlyLoading ? (
+            <View style={styles.modalCenter}>
+              <ActivityIndicator size="large" color="#67A9EA" />
+              <Text style={styles.modalHint}>Loading your trips…</Text>
+            </View>
+          ) : monthlyError ? (
+            <View style={styles.modalCenter}>
+              <Text style={styles.modalError}>{monthlyError}</Text>
+              <Pressable style={styles.modalRetry} onPress={() => void loadMonthlyTrips()}>
+                <Text style={styles.modalRetryText}>Retry</Text>
+              </Pressable>
+            </View>
+          ) : monthlyRows.length === 0 ? (
+            <View style={styles.modalCenter}>
+              <Ionicons name="receipt-outline" size={40} color="#5A6B7E" />
+              <Text style={styles.modalEmptyTitle}>No completed trips this month</Text>
+              <Text style={styles.modalEmptyBody}>
+                When you end a trip from the live trip screen, it appears here with the LKR total for
+                that run.
+              </Text>
+            </View>
+          ) : (
+            <>
+              <ScrollView
+                style={styles.modalList}
+                contentContainerStyle={styles.modalListContent}
+                showsVerticalScrollIndicator={false}
+              >
+                {monthlyRows.map((trip) => (
+                  <View key={trip.id} style={styles.earnRow}>
+                    <View style={styles.earnRowMain}>
+                      <Text style={styles.earnRoute} numberOfLines={2}>
+                        Route {trip.routeCode} · {trip.routeName}
+                      </Text>
+                      <Text style={styles.earnMeta} numberOfLines={1}>
+                        {trip.vehicleCode}
+                        {trip.originStopName && trip.destinationStopName
+                          ? ` · ${trip.originStopName} → ${trip.destinationStopName}`
+                          : ""}
+                      </Text>
+                      <Text style={styles.earnWhen}>{formatCompletedShort(trip.completedAt!)}</Text>
+                    </View>
+                    <Text style={styles.earnAmount}>LKR {trip.tripEarningsLkr.toFixed(0)}</Text>
+                  </View>
+                ))}
+              </ScrollView>
+              <View style={[styles.modalFooter, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+                <Text style={styles.modalFooterLabel}>Total this month ({monthlyRows.length} trips)</Text>
+                <Text style={styles.modalFooterTotal}>LKR {monthlyTotalLkr.toFixed(0)}</Text>
+              </View>
+            </>
+          )}
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -157,6 +348,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingBottom: 24,
   },
+  loadingRow: { paddingVertical: 16, alignItems: "center" },
+  emptyHint: { color: "#9FB2C6", fontSize: 14, marginBottom: 8 },
   weeklyCard: {
     marginTop: 8,
     borderRadius: 12,
@@ -429,5 +622,122 @@ const styles = StyleSheet.create({
     color: "#7CB7EE",
     fontSize: 18,
     fontWeight: "700",
+  },
+  modalScreen: {
+    flex: 1,
+    backgroundColor: "#0A121D",
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#1E2D3F",
+  },
+  modalTitleBlock: { flex: 1, paddingRight: 8 },
+  modalTitle: {
+    color: "#EAF2FC",
+    fontSize: 22,
+    fontWeight: "800",
+  },
+  modalSubtitle: {
+    color: "#8FA9C4",
+    fontSize: 13,
+    fontWeight: "600",
+    marginTop: 4,
+  },
+  modalClose: {
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalCenter: {
+    flex: 1,
+    paddingHorizontal: 28,
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 12,
+  },
+  modalHint: { color: "#9AB0C6", fontSize: 14, fontWeight: "600" },
+  modalError: { color: "#E88A8A", fontSize: 14, textAlign: "center", fontWeight: "600" },
+  modalRetry: {
+    marginTop: 4,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: "#1A3A5C",
+    borderWidth: 1,
+    borderColor: "#2C5D8E",
+  },
+  modalRetryText: { color: "#B8D9FF", fontWeight: "700" },
+  modalEmptyTitle: {
+    color: "#D8E6F4",
+    fontSize: 17,
+    fontWeight: "800",
+    textAlign: "center",
+  },
+  modalEmptyBody: {
+    color: "#8FA9C4",
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: "center",
+    fontWeight: "600",
+  },
+  modalList: { flex: 1 },
+  modalListContent: { padding: 16, paddingBottom: 8 },
+  earnRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 12,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "#1E2A38",
+  },
+  earnRowMain: { flex: 1, minWidth: 0 },
+  earnRoute: {
+    color: "#F1F8FF",
+    fontSize: 15,
+    fontWeight: "800",
+  },
+  earnMeta: {
+    color: "#7A93AC",
+    fontSize: 12,
+    fontWeight: "600",
+    marginTop: 4,
+  },
+  earnWhen: {
+    color: "#9AB0C6",
+    fontSize: 12,
+    fontWeight: "600",
+    marginTop: 6,
+  },
+  earnAmount: {
+    color: "#56DA90",
+    fontSize: 16,
+    fontWeight: "800",
+    flexShrink: 0,
+  },
+  modalFooter: {
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: "#1E2D3F",
+    backgroundColor: "#0D1622",
+  },
+  modalFooterLabel: {
+    color: "#9AB0C6",
+    fontSize: 12,
+    fontWeight: "700",
+    letterSpacing: 0.2,
+  },
+  modalFooterTotal: {
+    color: "#67A9EA",
+    fontSize: 28,
+    fontWeight: "800",
+    marginTop: 4,
   },
 });

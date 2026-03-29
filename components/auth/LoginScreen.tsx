@@ -10,7 +10,7 @@ import {
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { getAuthErrorMessage, getFirebaseAuthErrorCode } from "../../services/firebase/authErrors";
+import { getLoginFailureMessage } from "../../services/firebase/authErrors";
 
 export type UserRole = "passenger" | "driver";
 
@@ -60,12 +60,12 @@ export default function LoginScreen({
       setSubmitting(true);
       await onLogin?.({ role, email: trimmedEmail.toLowerCase(), password });
     } catch (err: unknown) {
-      const code = getFirebaseAuthErrorCode(err);
+      const { code, message } = getLoginFailureMessage(err);
       if (code) {
-        console.warn("Auth error code:", code);
+        console.warn("Login failure:", code, err);
       }
       setAuthErrorCode(code);
-      setError(getAuthErrorMessage(code));
+      setError(message);
     } finally {
       setSubmitting(false);
     }

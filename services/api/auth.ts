@@ -31,6 +31,22 @@ export async function login(input: { email: string; password: string }) {
   return res;
 }
 
+export async function getAuthProfile() {
+  return apiRequest<AppUser>("/auth/profile", { auth: true });
+}
+
+export async function updateAuthProfile(body: {
+  fullName?: string;
+  phone?: string | null;
+  photoUrl?: string | null;
+}) {
+  return apiRequest<AppUser>("/auth/profile", {
+    method: "POST",
+    auth: true,
+    body,
+  });
+}
+
 export async function register(input: {
   fullName: string;
   email: string;

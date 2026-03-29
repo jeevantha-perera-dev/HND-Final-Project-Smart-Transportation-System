@@ -224,6 +224,8 @@ export default function RouteSearchScreen({ navigation, route }: Props) {
 
   useEffect(() => {
     void handleUseCurrentLocation();
+    // Intentionally run once on mount; handler closes over latest state for that single run.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (

@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import path from "node:path";
 import { cert, getApps, initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
@@ -25,8 +27,22 @@ function parseServiceAccountJson() {
   }
 }
 
+function loadServiceAccountFromFile(): ServiceAccountShape | null {
+  const rawPath = env.APP_FIREBASE_SERVICE_ACCOUNT_PATH?.trim();
+  if (!rawPath) return null;
+  const resolved = path.isAbsolute(rawPath) ? rawPath : path.resolve(process.cwd(), rawPath);
+  try {
+    const raw = fs.readFileSync(resolved, "utf8");
+    const parsed = JSON.parse(raw) as ServiceAccountShape;
+    if (!parsed.private_key || !parsed.client_email || !parsed.project_id) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
 if (getApps().length === 0) {
-  const serviceAccount = parseServiceAccountJson();
+  const serviceAccount = loadServiceAccountFromFile() ?? parseServiceAccountJson();
   if (serviceAccount) {
     initializeApp({
       credential: cert({

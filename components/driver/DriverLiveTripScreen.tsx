@@ -1,26 +1,33 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { getBookingsForTrip } from "../../services/api/booking";
 import { publishDriverLocation } from "../../services/api/tracking";
-import { DriverScheduledTrip } from "../../services/api/trips";
+import { DriverScheduledTrip, getTripWalkIns, type TripWalkInRow } from "../../services/api/trips";
+import type { ManageSeatsFinishSummary } from "./DriverManualEntryScreen";
 
 type DriverLiveTripScreenProps = {
   trip?: DriverScheduledTrip | null;
+  queueRefreshToken?: number;
+  manageSeatsSummary?: ManageSeatsFinishSummary | null;
   onBack?: () => void;
   onEndTrip?: () => void;
   onOpenScanner?: () => void;
   onOpenIncident?: () => void;
-  onOpenQueueDetails?: (passenger: { id: string; name: string; type: "Adult" | "Student" | "Senior"; tickets: string }) => void;
+  onOpenQueueDetails?: (passenger: {
+    id: string;
+    name: string;
+    type: "Adult" | "Student" | "Senior";
+    tickets: string;
+    seat?: string;
+    boarded?: boolean;
+  }) => void;
 };
-
-const QUEUE = [
-  { id: "1", name: "Julian Richards", type: "Adult", tickets: "1 Ticket(s)" },
-  { id: "2", name: "Maria Thompson", type: "Student", tickets: "2 Ticket(s)" },
-  { id: "3", name: "Sarah Chen", type: "Adult", tickets: "1 Ticket(s)" },
-];
 
 export default function DriverLiveTripScreen({
   trip,
+  queueRefreshToken = 0,
+  manageSeatsSummary = null,
   onBack,
   onEndTrip,
   onOpenScanner,
@@ -28,9 +35,66 @@ export default function DriverLiveTripScreen({
   onOpenQueueDetails,
 }: DriverLiveTripScreenProps) {
   const [syncText, setSyncText] = useState("Sync location");
-  const activeTripId = trip?.id ?? "trip-demo-402";
-  const activeVehicleCode = trip?.vehicleCode ?? "BUS-402";
-  const nextStopName = trip?.destinationStopName ?? "West End Plaza";
+  const [queue, setQueue] = useState<
+    {
+      id: string;
+      name: string;
+      type: "Adult" | "Student" | "Senior";
+      tickets: string;
+      seat?: string;
+      boarded: boolean;
+      status: string;
+      totalAmount: number;
+    }[]
+  >([]);
+  const [walkIns, setWalkIns] = useState<TripWalkInRow[]>([]);
+  const activeTripId = trip?.id ?? "";
+  const activeVehicleCode = trip?.vehicleCode ?? "BUS-NA";
+  const nextStopName = trip?.destinationStopName ?? "Next stop";
+
+  useEffect(() => {
+    if (!trip?.id) {
+      setQueue([]);
+      setWalkIns([]);
+      return;
+    }
+    let mounted = true;
+    const load = async () => {
+      try {
+        const [{ items }, walkInRes] = await Promise.all([
+          getBookingsForTrip(trip.id),
+          getTripWalkIns(trip.id),
+        ]);
+        if (!mounted) return;
+        setQueue(
+          items
+            .filter((b) => b.status === "CONFIRMED" || b.status === "PENDING")
+            .map((b) => ({
+              id: b.id,
+              name: b.passengerLabel || b.userId,
+              type: "Adult" as const,
+              tickets: `${b.status} · ${b.seatId} · LKR ${b.totalAmount.toFixed(0)}`,
+              seat: b.seatId?.trim() || undefined,
+              boarded: Boolean(b.boarded),
+              status: b.status,
+              totalAmount: b.totalAmount,
+            }))
+        );
+        setWalkIns(walkInRes.items);
+      } catch {
+        if (mounted) {
+          setQueue([]);
+          setWalkIns([]);
+        }
+      }
+    };
+    void load();
+    const t = setInterval(() => void load(), 20000);
+    return () => {
+      mounted = false;
+      clearInterval(t);
+    };
+  }, [trip?.id, queueRefreshToken]);
 
   const routeTitle = useMemo(() => {
     if (trip?.routeName) return trip.routeName;
@@ -38,6 +102,10 @@ export default function DriverLiveTripScreen({
   }, [trip?.routeName]);
 
   const pushLocation = useCallback(async () => {
+    if (!activeTripId) {
+      setSyncText("No trip id");
+      return;
+    }
     try {
       const jitter = Math.random() * 0.001;
       await publishDriverLocation({
@@ -48,18 +116,42 @@ export default function DriverLiveTripScreen({
         speedKph: 55,
         nextStopName,
         etaMinutes: 4,
-        seatsAvailable: 32,
+        seatsAvailable: trip?.seatsAvailable ?? 0,
       });
       setSyncText("Location synced");
     } catch {
       setSyncText("Sync failed");
     }
-  }, [activeTripId, activeVehicleCode, nextStopName]);
+  }, [activeTripId, activeVehicleCode, nextStopName, trip?.seatsAvailable]);
 
   useEffect(() => {
+    if (!activeTripId) return;
     const timer = setInterval(() => void pushLocation(), 12000);
     return () => clearInterval(timer);
-  }, [pushLocation]);
+  }, [pushLocation, activeTripId]);
+
+  const seatsLeft = trip?.seatsAvailable ?? 0;
+  const bookedCount = queue.length;
+  const totalCapacity = Math.max(0, seatsLeft + bookedCount);
+  const hasSeatSummary = manageSeatsSummary != null;
+  const noShowLive = manageSeatsSummary?.noShowCount ?? 0;
+  const walkInCountLive = walkIns.length;
+  const walkInCashLkr = useMemo(
+    () => walkIns.reduce((sum, w) => sum + (Number(w.fareLkr) || 0), 0),
+    [walkIns]
+  );
+  const filledOccupancy = Math.max(0, bookedCount + walkInCountLive - noShowLive);
+  const occupancyPct =
+    totalCapacity > 0 ? Math.min(100, Math.round((filledOccupancy / totalCapacity) * 100)) : 0;
+  const appEarningsLkr = useMemo(
+    () =>
+      queue.reduce(
+        (sum, q) => (q.boarded && q.status === "CONFIRMED" ? sum + q.totalAmount : sum),
+        0
+      ),
+    [queue]
+  );
+  const tripEarningsLkr = appEarningsLkr + walkInCashLkr;
 
   return (
     <View style={styles.screen}>
@@ -133,20 +225,28 @@ export default function DriverLiveTripScreen({
               <Text style={styles.statTitle}>Occupancy</Text>
             </View>
             <View style={styles.occupancyRow}>
-              <Text style={styles.statBig}>32 / 45</Text>
-              <Text style={styles.optimal}>Optimal</Text>
+              <Text style={[styles.statBig, styles.occupancyBig]}>
+                {filledOccupancy} / {totalCapacity}
+              </Text>
             </View>
+            <Text style={styles.bookedSub}>
+              {bookedCount} booked (app)
+              {walkInCountLive > 0 ? ` · ${walkInCountLive} walk-in` : ""}
+              {hasSeatSummary && noShowLive > 0 ? ` · ${noShowLive} no-show (Manage Seats)` : ""}
+            </Text>
             <View style={styles.progressTrack}>
-              <View style={styles.progressFill} />
+              <View style={[styles.progressFill, { width: `${occupancyPct}%` }]} />
             </View>
           </View>
 
           <View style={styles.statCard}>
             <View style={styles.statTop}>
-              <Ionicons name="scan-circle-outline" size={16} color="#F4C44B" />
-              <Text style={styles.statTitle}>TODAY&apos;S TOTAL</Text>
+              <Ionicons name="cash-outline" size={16} color="#F4C44B" />
+              <Text style={styles.statTitle}>TRIP EARNINGS</Text>
             </View>
-            <Text style={[styles.statBig, styles.totalValue]}>142</Text>
+            <Text style={[styles.statBig, styles.totalValue]}>
+              LKR {tripEarningsLkr.toFixed(0)}
+            </Text>
           </View>
         </View>
 
@@ -154,7 +254,7 @@ export default function DriverLiveTripScreen({
           <View style={styles.queueTitleRow}>
             <Text style={styles.queueTitle}>Boarding Queue</Text>
             <View style={styles.queueCount}>
-              <Text style={styles.queueCountText}>3</Text>
+              <Text style={styles.queueCountText}>{queue.length}</Text>
             </View>
           </View>
           <Pressable onPress={pushLocation}>
@@ -162,7 +262,7 @@ export default function DriverLiveTripScreen({
           </Pressable>
         </View>
 
-        {QUEUE.map((p) => (
+        {queue.map((p) => (
           <View key={p.id} style={styles.queueCard}>
             <View style={styles.queueAvatar}>
               <Ionicons name="person" size={16} color="#E6EFFA" />
@@ -184,6 +284,8 @@ export default function DriverLiveTripScreen({
                   name: p.name,
                   type: p.type as "Adult" | "Student" | "Senior",
                   tickets: p.tickets,
+                  seat: p.seat,
+                  boarded: p.boarded,
                 })
               }
             >
@@ -249,10 +351,17 @@ const styles = StyleSheet.create({
   statCard: { flex: 1, backgroundColor: "#1A232F", borderRadius: 12, borderWidth: 1, borderColor: "#212D3A", padding: 12 },
   statTop: { flexDirection: "row", alignItems: "center", gap: 6 },
   statTitle: { color: "#B5C6D8", fontSize: 12, fontWeight: "700" },
-  occupancyRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 6 },
+  occupancyRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 6,
+    alignSelf: "stretch",
+  },
   statBig: { color: "#F5FBFF", fontSize: 35, fontWeight: "800" },
-  optimal: { color: "#E1ECF8", fontSize: 14, fontWeight: "700" },
-  totalValue: { textAlign: "center", marginTop: 20 },
+  occupancyBig: { textAlign: "center", alignSelf: "stretch" },
+  bookedSub: { color: "#9EB4CB", fontSize: 12, fontWeight: "600", marginTop: 4, textAlign: "center" },
+  totalValue: { textAlign: "center", marginTop: 12 },
   progressTrack: { height: 7, borderRadius: 4, backgroundColor: "#2A3644", marginTop: 8 },
   progressFill: { width: "72%", height: "100%", borderRadius: 4, backgroundColor: "#67A9EA" },
   queueHeader: { marginTop: 2, marginBottom: 8, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },

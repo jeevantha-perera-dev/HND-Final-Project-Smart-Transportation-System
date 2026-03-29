@@ -1,12 +1,12 @@
-import React, { useMemo, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import DriverDashboardScreen from "./DriverDashboardScreen";
 import DriverPerformanceScreen from "./DriverPerformanceScreen";
 import DriverLiveTripScreen from "./DriverLiveTripScreen";
 import DriverTripScannerScreen from "./DriverTripScannerScreen";
-import DriverManualEntryScreen from "./DriverManualEntryScreen";
+import DriverManualEntryScreen, { type ManageSeatsFinishSummary } from "./DriverManualEntryScreen";
 import DriverReportIncidentScreen from "./DriverReportIncidentScreen";
 import DriverRoutesListScreen, { DriverRouteSummary } from "./DriverRoutesListScreen";
 import DriverRouteDetailsScreen from "./DriverRouteDetailsScreen";
@@ -16,7 +16,15 @@ import DriverIncidentHistoryScreen from "./DriverIncidentHistoryScreen";
 import DriverSettingsScreen from "./DriverSettingsScreen";
 import DriverScheduleTripScreen from "./DriverScheduleTripScreen";
 import DriverScheduledTripsScreen from "./DriverScheduledTripsScreen";
-import { DriverScheduledTrip } from "../../services/api/trips";
+import { ApiError } from "../../services/api/client";
+import { getSession } from "../../services/api/session";
+import {
+  completeTrip,
+  getDriverTripStats,
+  getMyScheduledTrips,
+  type DriverScheduledTrip,
+  type DriverTripStats,
+} from "../../services/api/trips";
 
 type DriverTab = "dashboard" | "performance" | "settings";
 type DriverOverlay =
@@ -44,6 +52,68 @@ export default function DriverHome({ onLogout }: DriverHomeProps) {
   const [activeTrip, setActiveTrip] = useState<DriverScheduledTrip | null>(null);
   const [selectedPassenger, setSelectedPassenger] = useState<DriverPassengerDetails | null>(null);
   const [queueBackTarget, setQueueBackTarget] = useState<"liveTrip" | "tripHistory">("liveTrip");
+  const [nextTrip, setNextTrip] = useState<DriverScheduledTrip | null>(null);
+  const [nextTripLoading, setNextTripLoading] = useState(true);
+  const [tripStats, setTripStats] = useState<DriverTripStats | null>(null);
+  const [queueRefreshToken, setQueueRefreshToken] = useState(0);
+  const [manageSeatsSummary, setManageSeatsSummary] = useState<ManageSeatsFinishSummary | null>(null);
+
+  const refreshDriverSchedule = useCallback(async () => {
+    setNextTripLoading(true);
+    try {
+      const [sched, stats] = await Promise.all([
+        getMyScheduledTrips(),
+        getDriverTripStats().catch(() => null),
+      ]);
+      setNextTrip(sched.items[0] ?? null);
+      setTripStats(stats);
+    } catch {
+      setNextTrip(null);
+      setTripStats(null);
+    } finally {
+      setNextTripLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (overlay !== null) return;
+    void refreshDriverSchedule();
+  }, [overlay, refreshDriverSchedule]);
+
+  useEffect(() => {
+    setManageSeatsSummary(null);
+  }, [activeTrip?.id]);
+
+  const handleEndTrip = useCallback(() => {
+    const id = activeTrip?.id?.trim();
+    if (!id) return;
+    Alert.alert("End trip", "Mark this trip as completed and save trip earnings to your record?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "End trip",
+        style: "destructive",
+        onPress: () => {
+          void (async () => {
+            try {
+              const result = await completeTrip(id);
+              Alert.alert(
+                "Trip completed",
+                `Trip saved as completed. Recorded earnings: LKR ${result.tripEarningsLkr.toFixed(0)}.`
+              );
+              setActiveTrip(null);
+              setOverlay(null);
+              await refreshDriverSchedule();
+            } catch (e) {
+              Alert.alert(
+                "Could not complete trip",
+                e instanceof ApiError ? e.message : "Something went wrong. Try again."
+              );
+            }
+          })();
+        },
+      },
+    ]);
+  }, [activeTrip?.id, refreshDriverSchedule]);
 
   const isOverlayOpen = overlay !== null;
   const headerTitle =
@@ -66,21 +136,16 @@ export default function DriverHome({ onLogout }: DriverHomeProps) {
       return (
         <DriverQueueDetailsScreen
           passenger={selectedPassenger}
+          tripId={queueBackTarget === "liveTrip" ? activeTrip?.id : null}
           onBack={() => setOverlay(queueBackTarget)}
+          onBoardingChanged={() => setQueueRefreshToken((n) => n + 1)}
         />
       );
     }
 
     if (overlay === "tripHistory") {
       return (
-        <DriverTripHistoryScreen
-          onBack={() => setOverlay(null)}
-          onOpenQueueDetails={(passenger) => {
-            setSelectedPassenger(passenger);
-            setQueueBackTarget("tripHistory");
-            setOverlay("queueDetails");
-          }}
-        />
+        <DriverTripHistoryScreen onBack={() => setOverlay(null)} />
       );
     }
 
@@ -141,8 +206,16 @@ export default function DriverHome({ onLogout }: DriverHomeProps) {
     if (overlay === "manualEntry") {
       return (
         <DriverManualEntryScreen
-          onBack={() => setOverlay("scanner")}
-          onFinishCheck={() => setOverlay("scanner")}
+          tripId={activeTrip?.id}
+          onBack={() => {
+            setQueueRefreshToken((n) => n + 1);
+            setOverlay("scanner");
+          }}
+          onFinishCheck={(summary) => {
+            setManageSeatsSummary(summary);
+            setOverlay("liveTrip");
+            setQueueRefreshToken((n) => n + 1);
+          }}
         />
       );
     }
@@ -160,6 +233,8 @@ export default function DriverHome({ onLogout }: DriverHomeProps) {
       return (
         <DriverLiveTripScreen
           trip={activeTrip}
+          queueRefreshToken={queueRefreshToken}
+          manageSeatsSummary={manageSeatsSummary}
           onBack={() => setOverlay(null)}
           onOpenIncident={() => setOverlay("reportIncident")}
           onOpenScanner={() => setOverlay("scanner")}
@@ -168,9 +243,7 @@ export default function DriverHome({ onLogout }: DriverHomeProps) {
             setQueueBackTarget("liveTrip");
             setOverlay("queueDetails");
           }}
-          onEndTrip={() => {
-            setOverlay(null);
-          }}
+          onEndTrip={handleEndTrip}
         />
       );
     }
@@ -186,12 +259,29 @@ export default function DriverHome({ onLogout }: DriverHomeProps) {
     return (
       <DriverDashboardScreen
         onStartTrip={() => setOverlay("scheduledTrips")}
-        onViewRoutes={() => setOverlay("routesList")}
         onViewTripHistory={() => setOverlay("tripHistory")}
         onScheduleTrip={() => setOverlay("scheduleTrip")}
+        driverName={getSession().user?.fullName ?? "Driver"}
+        nextTrip={nextTrip}
+        nextTripLoading={nextTripLoading}
+        tripStats={tripStats}
       />
     );
-  }, [activeTab, activeTrip, onLogout, overlay, queueBackTarget, selectedPassenger, selectedRoute]);
+  }, [
+    activeTab,
+    activeTrip,
+    handleEndTrip,
+    manageSeatsSummary,
+    nextTrip,
+    nextTripLoading,
+    onLogout,
+    overlay,
+    queueBackTarget,
+    queueRefreshToken,
+    selectedPassenger,
+    selectedRoute,
+    tripStats,
+  ]);
 
   return (
     <SafeAreaView style={styles.container}>

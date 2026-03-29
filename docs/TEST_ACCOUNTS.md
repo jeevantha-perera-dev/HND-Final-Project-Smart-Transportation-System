@@ -1,5 +1,17 @@
 # Creating test accounts
 
+## Passwords in Firebase Console
+
+Firebase **never shows** saved passwords in the console (they are hashed). When you **Add user** in Authentication, you set the password once; after that you only see **Reset password**, not the old password. If you forgot it, use **Reset password** or delete the user and add them again.
+
+## Real phone login checklist
+
+1. **Same Wi‑Fi** as the PC running the backend.
+2. Root `.env` **`EXPO_PUBLIC_API_URL`** must be `http://YOUR_PC_LAN_IP:4000/api/v1` (not `127.0.0.1` — the phone cannot reach that).
+3. **Windows Firewall**: allow inbound **TCP 4000** for Node/backend.
+4. **Firebase web app values** in `.env` must match **Project settings → Your apps** (especially **`EXPO_PUBLIC_FIREBASE_APP_ID`** — not a placeholder like `1:000000000000:web:local`).
+5. **Authentication → Sign-in method**: **Email/Password** enabled.
+
 Firebase Authentication only allows sign-in for users that already exist in your Auth project (or in the **Auth emulator** when the app is pointed at it). The app does not create a user automatically on the login screen—you must register first or create a user in the console/emulator.
 
 ## Option A — Firebase Console (production project)

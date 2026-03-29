@@ -6,6 +6,7 @@ import { routingRouter } from "./routing";
 import { sosRouter } from "./sos";
 import { trackingRouter } from "./tracking";
 import { transitRouter } from "./transit";
+import { routesCatalogRouter } from "./routesCatalog";
 import { tripsRouter } from "./trips";
 import { walletRouter } from "./wallet";
 
@@ -22,6 +23,7 @@ apiRouter.use("/auth", authRouter);
 apiRouter.use("/places", placesRouter);
 apiRouter.use("/routing", routingRouter);
 apiRouter.use("/transit", transitRouter);
+apiRouter.use("/routes", routesCatalogRouter);
 apiRouter.use("/trips", tripsRouter);
 apiRouter.use("/bookings", bookingRouter);
 apiRouter.use("/wallet", walletRouter);

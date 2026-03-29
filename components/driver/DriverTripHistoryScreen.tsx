@@ -1,69 +1,75 @@
-import React, { useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { DriverPassengerDetails } from "./DriverQueueDetailsScreen";
-
-type HistoryStatus = "Completed" | "Delayed" | "Cancelled";
-
-type HistoryTrip = {
-  id: string;
-  route: string;
-  date: string;
-  earnings: string;
-  boarded: number;
-  status: HistoryStatus;
-  samplePassenger: DriverPassengerDetails;
-};
+import { ApiError } from "../../services/api/client";
+import { getMyTripHistory, type DriverHistoryTrip } from "../../services/api/trips";
 
 type DriverTripHistoryScreenProps = {
   onBack?: () => void;
-  onOpenQueueDetails?: (passenger: DriverPassengerDetails) => void;
 };
 
-const TRIPS: HistoryTrip[] = [
-  {
-    id: "TR-991",
-    route: "Route 402 • Downtown → Central",
-    date: "Today • 08:30 AM",
-    earnings: "$34.20",
-    boarded: 31,
-    status: "Completed",
-    samplePassenger: { id: "q-1", name: "Julian Richards", type: "Adult", tickets: "1 Ticket(s)" },
-  },
-  {
-    id: "TR-988",
-    route: "Route 115 • Tech Park Loop",
-    date: "Yesterday • 06:15 PM",
-    earnings: "$26.10",
-    boarded: 22,
-    status: "Delayed",
-    samplePassenger: { id: "q-2", name: "Maria Thompson", type: "Student", tickets: "2 Ticket(s)" },
-  },
-  {
-    id: "TR-982",
-    route: "Route 089 • Airport Connector",
-    date: "Mar 16 • 04:20 PM",
-    earnings: "$18.90",
-    boarded: 14,
-    status: "Cancelled",
-    samplePassenger: { id: "q-3", name: "Sarah Chen", type: "Adult", tickets: "1 Ticket(s)" },
-  },
-];
+const DATE_RANGE_DAYS = [7, 30] as const;
+type RangeDays = (typeof DATE_RANGE_DAYS)[number];
 
-const DATE_RANGE = ["7 Days", "30 Days"] as const;
-const STATUS_FILTERS = ["All", "Completed", "Delayed", "Cancelled"] as const;
+const STATUS_FILTERS = ["All", "Completed", "Cancelled"] as const;
+type StatusFilter = (typeof STATUS_FILTERS)[number];
 
-export default function DriverTripHistoryScreen({
-  onBack,
-  onOpenQueueDetails,
-}: DriverTripHistoryScreenProps) {
-  const [range, setRange] = useState<(typeof DATE_RANGE)[number]>("7 Days");
-  const [status, setStatus] = useState<(typeof STATUS_FILTERS)[number]>("All");
-  const [expandedTripId, setExpandedTripId] = useState<string | null>(null);
+function formatHistoryWhen(iso: string | null | undefined) {
+  if (!iso) return "—";
+  try {
+    const d = new Date(iso);
+    return d.toLocaleString("en-LK", {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return iso;
+  }
+}
+
+function displayStatus(status: string): "Completed" | "Cancelled" {
+  const s = status.toLowerCase();
+  if (s === "cancelled") return "Cancelled";
+  return "Completed";
+}
+
+export default function DriverTripHistoryScreen({ onBack }: DriverTripHistoryScreenProps) {
+  const [rangeDays, setRangeDays] = useState<RangeDays>(7);
+  const [status, setStatus] = useState<StatusFilter>("All");
+  const [items, setItems] = useState<DriverHistoryTrip[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const { items: next } = await getMyTripHistory({ days: rangeDays });
+      setItems(next);
+    } catch (e) {
+      setItems([]);
+      setLoadError(e instanceof ApiError ? e.message : "Could not load trip history.");
+    } finally {
+      setLoading(false);
+    }
+  }, [rangeDays]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   const visibleTrips = useMemo(() => {
-    return TRIPS.filter((trip) => (status === "All" ? true : trip.status === status));
-  }, [status]);
+    return items.filter((trip) => {
+      if (status === "All") return true;
+      const s = trip.status.toLowerCase();
+      if (status === "Completed") return s === "completed";
+      if (status === "Cancelled") return s === "cancelled";
+      return true;
+    });
+  }, [items, status]);
 
   return (
     <View style={styles.screen}>
@@ -77,15 +83,16 @@ export default function DriverTripHistoryScreen({
 
       <View style={styles.toolbar}>
         <View style={styles.rangeWrap}>
-          {DATE_RANGE.map((item) => {
-            const active = item === range;
+          {DATE_RANGE_DAYS.map((d) => {
+            const active = d === rangeDays;
+            const label = d === 7 ? "7 Days" : "30 Days";
             return (
               <Pressable
-                key={item}
+                key={d}
                 style={[styles.rangeBtn, active && styles.rangeBtnActive]}
-                onPress={() => setRange(item)}
+                onPress={() => setRangeDays(d)}
               >
-                <Text style={[styles.rangeText, active && styles.rangeTextActive]}>{item}</Text>
+                <Text style={[styles.rangeText, active && styles.rangeTextActive]}>{label}</Text>
               </Pressable>
             );
           })}
@@ -108,56 +115,77 @@ export default function DriverTripHistoryScreen({
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        {visibleTrips.map((trip) => {
-          const expanded = expandedTripId === trip.id;
-          return (
-            <View key={trip.id} style={styles.tripCard}>
-              <Pressable
-                style={styles.tripMain}
-                onPress={() => setExpandedTripId(expanded ? null : trip.id)}
-              >
-                <View style={styles.tripTop}>
-                  <Text style={styles.tripId}>{trip.id}</Text>
-                  <Text
-                    style={[
-                      styles.tripStatus,
-                      trip.status === "Completed"
-                        ? styles.statusCompleted
-                        : trip.status === "Delayed"
-                          ? styles.statusDelayed
-                          : styles.statusCancelled,
-                    ]}
-                  >
-                    {trip.status}
-                  </Text>
-                </View>
-                <Text style={styles.route}>{trip.route}</Text>
-                <Text style={styles.date}>{trip.date}</Text>
-                <View style={styles.metricsRow}>
-                  <Metric label="Earnings" value={trip.earnings} />
-                  <Metric label="Boarded" value={`${trip.boarded}`} />
-                  <Ionicons
-                    name={expanded ? "chevron-up-outline" : "chevron-down-outline"}
-                    size={18}
-                    color="#A4B8CC"
-                  />
-                </View>
-              </Pressable>
+        {loading ? (
+          <View style={styles.centered}>
+            <ActivityIndicator size="small" color="#67A9EA" />
+            <Text style={styles.loadingText}>Loading your trips…</Text>
+          </View>
+        ) : loadError ? (
+          <View style={styles.centered}>
+            <Text style={styles.errorText}>{loadError}</Text>
+            <Pressable style={styles.retryBtn} onPress={() => void load()}>
+              <Text style={styles.retryBtnText}>Retry</Text>
+            </Pressable>
+          </View>
+        ) : visibleTrips.length === 0 ? (
+          <Text style={styles.emptyText}>
+            No trips in the last {rangeDays} days for this filter. Complete a trip from the live trip
+            screen to see it here.
+          </Text>
+        ) : (
+          visibleTrips.map((trip) => {
+            const label = displayStatus(trip.status);
+            const routeLine = `Route ${trip.routeCode} · ${trip.routeName}`;
+            const stopsLine =
+              trip.originStopName && trip.destinationStopName
+                ? `${trip.originStopName} → ${trip.destinationStopName}`
+                : "";
+            const whenIso = trip.completedAt ?? trip.departureAt;
+            const earningsText =
+              trip.status.toLowerCase() === "completed"
+                ? `LKR ${trip.tripEarningsLkr.toFixed(0)}`
+                : "—";
+            const boardedText =
+              trip.status.toLowerCase() === "completed" ? String(trip.boardedCount) : "—";
 
-              {expanded ? (
-                <View style={styles.expandedWrap}>
-                  <Pressable
-                    style={styles.inlineAction}
-                    onPress={() => onOpenQueueDetails?.(trip.samplePassenger)}
-                  >
-                    <Ionicons name="people-outline" size={15} color="#7FB3E4" />
-                    <Text style={styles.inlineActionText}>Open Queue Details</Text>
-                  </Pressable>
+            return (
+              <View key={trip.id} style={styles.tripCard}>
+                <View style={styles.tripMain}>
+                  <View style={styles.tripTop}>
+                    <Text style={styles.tripId} numberOfLines={1}>
+                      {trip.id}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.tripStatus,
+                        label === "Completed" ? styles.statusCompleted : styles.statusCancelled,
+                      ]}
+                    >
+                      {label}
+                    </Text>
+                  </View>
+                  <Text style={styles.route}>{routeLine}</Text>
+                  {stopsLine ? (
+                    <Text style={styles.stops} numberOfLines={2}>
+                      {stopsLine}
+                    </Text>
+                  ) : null}
+                  <Text style={styles.date}>{formatHistoryWhen(whenIso)}</Text>
+                  <View style={styles.metricsRow}>
+                    <Metric label="Earnings" value={earningsText} />
+                    <Metric label="Boarded" value={boardedText} />
+                    <View style={styles.vehicleChip}>
+                      <Ionicons name="bus-outline" size={14} color="#87B9FF" />
+                      <Text style={styles.vehicleChipText} numberOfLines={1}>
+                        {trip.vehicleCode}
+                      </Text>
+                    </View>
+                  </View>
                 </View>
-              ) : null}
-            </View>
-          );
-        })}
+              </View>
+            );
+          })
+        )}
       </ScrollView>
     </View>
   );
@@ -165,7 +193,7 @@ export default function DriverTripHistoryScreen({
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <View>
+    <View style={styles.metricBlock}>
       <Text style={styles.metricLabel}>{label}</Text>
       <Text style={styles.metricValue}>{value}</Text>
     </View>
@@ -206,7 +234,20 @@ const styles = StyleSheet.create({
   filterChipActive: { backgroundColor: "#123D6B", borderColor: "#2C5D8E" },
   filterText: { color: "#9FB4C8", fontSize: 11, fontWeight: "700" },
   filterTextActive: { color: "#D9EBFF" },
-  content: { padding: 14, paddingBottom: 24 },
+  content: { padding: 14, paddingBottom: 24, flexGrow: 1 },
+  centered: { paddingVertical: 28, alignItems: "center", gap: 12 },
+  loadingText: { color: "#9AB0C6", fontSize: 14, fontWeight: "600" },
+  errorText: { color: "#E88A8A", fontSize: 14, fontWeight: "600", textAlign: "center" },
+  retryBtn: {
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: "#1A3A5C",
+    borderWidth: 1,
+    borderColor: "#2C5D8E",
+  },
+  retryBtnText: { color: "#B8D9FF", fontSize: 14, fontWeight: "700" },
+  emptyText: { color: "#9AB0C6", fontSize: 14, lineHeight: 20, fontWeight: "600" },
   tripCard: {
     borderRadius: 12,
     borderWidth: 1,
@@ -216,8 +257,8 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   tripMain: { padding: 12 },
-  tripTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  tripId: { color: "#7FA9D5", fontSize: 12, fontWeight: "700" },
+  tripTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 },
+  tripId: { color: "#7FA9D5", fontSize: 12, fontWeight: "700", flex: 1 },
   tripStatus: {
     overflow: "hidden",
     borderRadius: 999,
@@ -227,14 +268,31 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   statusCompleted: { color: "#81E3AA", backgroundColor: "rgba(31,120,66,0.35)" },
-  statusDelayed: { color: "#FFD37C", backgroundColor: "rgba(107,80,23,0.45)" },
   statusCancelled: { color: "#F09AA9", backgroundColor: "rgba(112,31,46,0.45)" },
   route: { color: "#F1F8FF", fontSize: 16, fontWeight: "800", marginTop: 4 },
-  date: { color: "#A8BDCF", fontSize: 12, marginTop: 2, fontWeight: "600" },
-  metricsRow: { marginTop: 10, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  stops: { color: "#8FA9C4", fontSize: 13, fontWeight: "600", marginTop: 4 },
+  date: { color: "#A8BDCF", fontSize: 12, marginTop: 6, fontWeight: "600" },
+  metricsRow: {
+    marginTop: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  metricBlock: { flex: 1 },
   metricLabel: { color: "#90A5BC", fontSize: 11, fontWeight: "600" },
   metricValue: { color: "#EAF3FC", fontSize: 14, fontWeight: "800", marginTop: 2 },
-  expandedWrap: { borderTopWidth: 1, borderTopColor: "#2A3A4D", padding: 12 },
-  inlineAction: { flexDirection: "row", alignItems: "center", gap: 7 },
-  inlineActionText: { color: "#8FBBE5", fontSize: 13, fontWeight: "700" },
+  vehicleChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    maxWidth: 120,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: "#121A26",
+    borderWidth: 1,
+    borderColor: "#243044",
+  },
+  vehicleChipText: { color: "#B8D1EA", fontSize: 12, fontWeight: "700", flex: 1 },
 });

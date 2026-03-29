@@ -25,16 +25,26 @@ export default function ExpressRoutesScreen({ navigation }: Props) {
           <View style={styles.iconBtn} />
         </View>
 
-        {expressRoutes.map((item) => (
-          <View key={item.id} style={styles.card}>
-            <Text style={styles.routeName}>{item.route}</Text>
-            <Text style={styles.meta}>{item.from + " to " + item.to}</Text>
-            <View style={styles.durationPill}>
-              <Ionicons name="time-outline" size={12} color="#B9D9F8" />
-              <Text style={styles.durationText}>{item.duration}</Text>
+        {expressRoutes.map((item) => {
+          return (
+            <View key={item.id} style={styles.card}>
+              <Text style={styles.routeName}>{item.route}</Text>
+              <Text
+                style={styles.meta}
+              >
+                {String(item.from)}
+                {" to "}
+                {String(item.to)}
+              </Text>
+              <View
+                style={styles.durationPill}
+              >
+                <Ionicons name="time-outline" size={12} color="#B9D9F8" style={styles.durationIcon} />
+                <Text style={styles.durationText}>{item.duration}</Text>
+              </View>
             </View>
-          </View>
-        ))}
+          );
+        })}
       </ScrollView>
     </SafeAreaView>
   );
@@ -65,9 +75,9 @@ const styles = StyleSheet.create({
     backgroundColor: "#18334F",
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
     paddingHorizontal: 8,
     paddingVertical: 4,
   },
+  durationIcon: { marginRight: 4 },
   durationText: { color: "#D5E9FD", fontSize: 11, fontWeight: "700" },
 });

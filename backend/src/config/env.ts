@@ -9,6 +9,8 @@ const envSchema = z.object({
   APP_FIREBASE_PROJECT_ID: z.string().min(1),
   APP_FIREBASE_WEB_API_KEY: z.string().min(1),
   APP_FIREBASE_SERVICE_ACCOUNT_JSON: z.string().optional(),
+  /** Path to service account JSON file (relative to backend cwd, or absolute). Preferred over inline JSON in .env */
+  APP_FIREBASE_SERVICE_ACCOUNT_PATH: z.string().optional(),
   APP_FIREBASE_AUTH_EMULATOR_HOST: z.string().optional(),
   FIRESTORE_EMULATOR_HOST: z.string().optional(),
   OSM_NOMINATIM_BASE_URL: z.string().url().default("https://nominatim.openstreetmap.org"),

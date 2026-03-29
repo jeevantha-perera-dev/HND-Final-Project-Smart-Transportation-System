@@ -1,8 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { ApiError } from "../../../services/api/client";
+import { getTripDetail, type TripDetail } from "../../../services/api/trips";
 import { PassengerHomeStackParamList } from "../types";
 
 const BG = "#121212";
@@ -14,31 +16,114 @@ const MUTED = "#8E8E93";
 
 const ROWS = [1, 2, 3, 4, 5] as const;
 
-/** Reserved / locked seats (includes 1A & 1B per accessibility banner) */
-const RESERVED_IDS = new Set(["1A", "1B", "2B", "3C", "4A"]);
+/** Not selectable — accessibility (matches banner). */
+const ACCESSIBILITY_SEATS = new Set(["1A", "1B"]);
 
 type Props = NativeStackScreenProps<PassengerHomeStackParamList, "SeatSelection">;
 
-export default function SeatSelectionScreen({ navigation, route }: Props) {
-  const { tripId, busId = "—", routeName = "Route", price = "$0.00" } = route.params ?? {};
-  const baseFare = useMemo(() => {
-    const n = parseFloat(String(price).replace(/[^0-9.]/g, ""));
-    return Number.isFinite(n) ? n : 0;
-  }, [price]);
+function normSeat(id: string) {
+  return id.trim().toUpperCase();
+}
 
+function parseLkrFromLabel(price: string) {
+  const n = parseFloat(String(price).replace(/[^0-9.]/g, ""));
+  return Number.isFinite(n) ? n : 0;
+}
+
+function formatDeparture(iso: string) {
+  try {
+    const d = new Date(iso);
+    return d.toLocaleString("en-LK", {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return iso;
+  }
+}
+
+export default function SeatSelectionScreen({ navigation, route }: Props) {
+  const { tripId, busId: paramBusId = "—", routeName: paramRouteName = "Route", price = "LKR 0" } = route.params ?? {};
+  const tripMissing = !tripId?.trim();
+  const paramFareLkr = useMemo(() => parseLkrFromLabel(price), [price]);
+
+  const [trip, setTrip] = useState<TripDetail | null>(null);
+  const [loading, setLoading] = useState(!tripMissing);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const totalFare = useMemo(() => {
-    if (!selectedId) return baseFare;
-    return baseFare;
-  }, [selectedId, baseFare]);
+  const occupiedSet = useMemo(() => {
+    const s = new Set<string>();
+    for (const id of trip?.occupiedSeatIds ?? []) {
+      s.add(normSeat(id));
+    }
+    return s;
+  }, [trip?.occupiedSeatIds]);
 
-  const totalLabel = `$${totalFare.toFixed(2)}`;
+  const loadTrip = useCallback(async () => {
+    if (!tripId?.trim()) return;
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const detail = await getTripDetail(tripId.trim());
+      setTrip(detail);
+    } catch (e) {
+      setTrip(null);
+      setLoadError(e instanceof ApiError ? e.message : "Could not load trip details.");
+    } finally {
+      setLoading(false);
+    }
+  }, [tripId]);
+
+  useEffect(() => {
+    if (tripMissing) {
+      setLoading(false);
+      return;
+    }
+    void loadTrip();
+  }, [tripMissing, loadTrip]);
+
+  useEffect(() => {
+    if (!selectedId) return;
+    const n = normSeat(selectedId);
+    if (ACCESSIBILITY_SEATS.has(n) || occupiedSet.has(n)) {
+      setSelectedId(null);
+    }
+  }, [occupiedSet, selectedId]);
+
+  const baseFareLkr = trip?.baseFare ?? paramFareLkr;
+  const displayRouteName = trip?.routeName ?? paramRouteName;
+  const displayBusId = trip?.routeCode?.trim() ? `R-${trip.routeCode.trim()}` : paramBusId;
+  const vehicleLabel = trip?.vehicleCode ?? "";
+  const priceLabel = `LKR ${baseFareLkr.toFixed(0)}`;
+
+  const totalFare = useMemo(() => {
+    if (!selectedId) return baseFareLkr;
+    return baseFareLkr;
+  }, [selectedId, baseFareLkr]);
+
+  const totalLabel = `LKR ${totalFare.toFixed(0)}`;
+
+  function seatUnavailable(id: string) {
+    const n = normSeat(id);
+    return ACCESSIBILITY_SEATS.has(n) || occupiedSet.has(n);
+  }
 
   function toggleSeat(id: string) {
-    if (RESERVED_IDS.has(id)) return;
+    if (seatUnavailable(id)) return;
     setSelectedId((prev) => (prev === id ? null : id));
   }
+
+  const canConfirm =
+    Boolean(selectedId) &&
+    !tripMissing &&
+    !loading &&
+    !loadError &&
+    trip &&
+    trip.seatsAvailable > 0;
 
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
@@ -60,70 +145,106 @@ export default function SeatSelectionScreen({ navigation, route }: Props) {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.legend}>
-            <LegendDot color="#34C759" label="Available" />
-            <LegendDot color="#FF453A" label="Reserved" />
-            <LegendDot color={PRIMARY} label="Selected" />
-          </View>
-
-          <View style={styles.busShell}>
-            <View style={styles.driverBlock}>
-              <Ionicons name="person" size={22} color={MUTED} />
-              <Text style={styles.driverLabel}>DRIVER</Text>
+          {tripMissing ? (
+            <View style={styles.warnBanner}>
+              <Ionicons name="warning-outline" size={20} color="#FF9F0A" />
+              <Text style={styles.warnText}>This trip is not linked to a scheduled service. Go back and pick a bus with live availability.</Text>
             </View>
+          ) : null}
 
-            {ROWS.map((row) => (
-              <View key={row} style={styles.seatRow}>
-                <Text style={styles.rowNum}>{row}</Text>
-                <SeatTile
-                  id={`${row}A`}
-                  reserved={RESERVED_IDS.has(`${row}A`)}
-                  selected={selectedId === `${row}A`}
-                  onPress={() => toggleSeat(`${row}A`)}
-                />
-                <SeatTile
-                  id={`${row}B`}
-                  reserved={RESERVED_IDS.has(`${row}B`)}
-                  selected={selectedId === `${row}B`}
-                  onPress={() => toggleSeat(`${row}B`)}
-                />
-                <View style={styles.aisle} />
-                <SeatTile
-                  id={`${row}C`}
-                  reserved={RESERVED_IDS.has(`${row}C`)}
-                  selected={selectedId === `${row}C`}
-                  onPress={() => toggleSeat(`${row}C`)}
-                />
-                <SeatTile
-                  id={`${row}D`}
-                  reserved={RESERVED_IDS.has(`${row}D`)}
-                  selected={selectedId === `${row}D`}
-                  onPress={() => toggleSeat(`${row}D`)}
-                />
-              </View>
-            ))}
-
-            <DottedRule />
-            <View style={styles.rearExitWrap}>
-              <View style={styles.rearExitPill}>
-                <Text style={styles.rearExitText}>Rear Exit Nearby</Text>
-              </View>
+          {!tripMissing && loading ? (
+            <View style={styles.loadingBlock}>
+              <ActivityIndicator color={PRIMARY} size="large" />
+              <Text style={styles.loadingText}>Loading seat map for this trip…</Text>
             </View>
-          </View>
+          ) : null}
 
-          <View style={styles.accessBanner}>
-            <Ionicons name="information-circle" size={22} color={TEXT} style={styles.accessIcon} />
-            <View style={styles.accessTextWrap}>
-              <Text style={styles.accessTitle}>Accessibility Priority</Text>
-              <Text style={styles.accessBody}>
-                Seats 1A and 1B are reserved for passengers with limited mobility or disabilities.
+          {!tripMissing && !loading && loadError ? (
+            <View style={styles.errorPanel}>
+              <View style={styles.errorRow}>
+                <Ionicons name="cloud-offline-outline" size={20} color="#FF9F0A" />
+                <Text style={styles.warnText}>{loadError}</Text>
+              </View>
+              <Pressable style={styles.retryBtn} onPress={() => void loadTrip()}>
+                <Text style={styles.retryBtnText}>Retry</Text>
+              </Pressable>
+            </View>
+          ) : null}
+
+          {!tripMissing && !loading && trip ? (
+            <View style={styles.tripCard}>
+              <Text style={styles.tripTitle} numberOfLines={2}>
+                {displayRouteName}
+              </Text>
+              <View style={styles.tripRow}>
+                <Ionicons name="bus-outline" size={16} color={MUTED} />
+                <Text style={styles.tripMetaText}>
+                  {vehicleLabel}
+                  {displayBusId && vehicleLabel ? " · " : ""}
+                  {displayBusId}
+                </Text>
+              </View>
+              {trip.originStopName || trip.destinationStopName ? (
+                <View style={styles.tripRow}>
+                  <Ionicons name="location-outline" size={16} color={MUTED} />
+                  <Text style={styles.tripMetaText} numberOfLines={2}>
+                    {trip.originStopName || "—"} → {trip.destinationStopName || "—"}
+                  </Text>
+                </View>
+              ) : null}
+              <View style={styles.tripRow}>
+                <Ionicons name="time-outline" size={16} color={MUTED} />
+                <Text style={styles.tripMetaText}>{formatDeparture(trip.departureAt)}</Text>
+              </View>
+              <View style={styles.tripFareRow}>
+                <Text style={styles.tripFareLabel}>Single trip (LKR)</Text>
+                <Text style={styles.tripFareValue}>{baseFareLkr.toFixed(0)}</Text>
+              </View>
+              <Text style={styles.seatsLeftLine}>
+                {trip.seatsAvailable > 0
+                  ? `${trip.seatsAvailable} seats left on this bus`
+                  : "No seats left — choose another trip"}
               </Text>
             </View>
-          </View>
+          ) : null}
 
-          <Text style={styles.routeMeta} numberOfLines={1}>
-            {busId} · {routeName}
-          </Text>
+          {tripMissing ? (
+            <>
+              <View style={styles.legend}>
+                <LegendDot color="#34C759" label="Available" />
+                <LegendDot color="#FF453A" label="Taken / blocked" />
+                <LegendDot color={PRIMARY} label="Selected" />
+              </View>
+              <SeatMapGrid
+                seatUnavailable={(id) => ACCESSIBILITY_SEATS.has(normSeat(id))}
+                selectedId={selectedId}
+                onToggleSeat={toggleSeat}
+              />
+              <AccessBanner />
+              <Text style={styles.routeMeta} numberOfLines={2}>
+                {`${paramBusId} · ${paramRouteName}`}
+              </Text>
+            </>
+          ) : null}
+
+          {!tripMissing && trip && !loading ? (
+            <>
+              <View style={styles.legend}>
+                <LegendDot color="#34C759" label="Available" />
+                <LegendDot color="#FF453A" label="Taken / blocked" />
+                <LegendDot color={PRIMARY} label="Selected" />
+              </View>
+              <SeatMapGrid
+                seatUnavailable={seatUnavailable}
+                selectedId={selectedId}
+                onToggleSeat={toggleSeat}
+              />
+              <AccessBanner />
+              <Text style={styles.routeMeta} numberOfLines={2}>
+                {`${displayBusId} · ${displayRouteName}`}
+              </Text>
+            </>
+          ) : null}
         </ScrollView>
 
         <View style={styles.footer}>
@@ -145,16 +266,18 @@ export default function SeatSelectionScreen({ navigation, route }: Props) {
           </View>
 
           <Pressable
-            style={[styles.confirmBtn, !selectedId && styles.confirmBtnDisabled]}
-            disabled={!selectedId}
+            style={[styles.confirmBtn, !canConfirm && styles.confirmBtnDisabled]}
+            disabled={!canConfirm}
             onPress={() => {
-              if (!selectedId) return;
+              if (!canConfirm || !selectedId || !tripId) return;
               navigation.navigate("Checkout", {
                 tripId,
-                busId,
-                routeName,
-                price,
+                busId: displayBusId,
+                routeName: displayRouteName,
+                price: priceLabel,
                 seatId: selectedId,
+                fromStop: trip?.originStopName,
+                toStop: trip?.destinationStopName,
               });
             }}
           >
@@ -182,6 +305,77 @@ function LegendDot({ color, label }: { color: string; label: string }) {
     <View style={styles.legendItem}>
       <View style={[styles.legendDot, { backgroundColor: color }]} />
       <Text style={styles.legendLabel}>{label}</Text>
+    </View>
+  );
+}
+
+function AccessBanner() {
+  return (
+    <View style={styles.accessBanner}>
+      <Ionicons name="information-circle" size={22} color={TEXT} style={styles.accessIcon} />
+      <View style={styles.accessTextWrap}>
+        <Text style={styles.accessTitle}>Accessibility Priority</Text>
+        <Text style={styles.accessBody}>
+          Seats 1A and 1B are reserved for passengers with limited mobility or disabilities.
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+function SeatMapGrid({
+  seatUnavailable,
+  selectedId,
+  onToggleSeat,
+}: {
+  seatUnavailable: (id: string) => boolean;
+  selectedId: string | null;
+  onToggleSeat: (id: string) => void;
+}) {
+  return (
+    <View style={styles.busShell}>
+      <View style={styles.driverBlock}>
+        <Ionicons name="person" size={22} color={MUTED} />
+        <Text style={styles.driverLabel}>DRIVER</Text>
+      </View>
+
+      {ROWS.map((row) => (
+        <View key={row} style={styles.seatRow}>
+          <Text style={styles.rowNum}>{row}</Text>
+          <SeatTile
+            id={`${row}A`}
+            reserved={seatUnavailable(`${row}A`)}
+            selected={selectedId === `${row}A`}
+            onPress={() => onToggleSeat(`${row}A`)}
+          />
+          <SeatTile
+            id={`${row}B`}
+            reserved={seatUnavailable(`${row}B`)}
+            selected={selectedId === `${row}B`}
+            onPress={() => onToggleSeat(`${row}B`)}
+          />
+          <View style={styles.aisle} />
+          <SeatTile
+            id={`${row}C`}
+            reserved={seatUnavailable(`${row}C`)}
+            selected={selectedId === `${row}C`}
+            onPress={() => onToggleSeat(`${row}C`)}
+          />
+          <SeatTile
+            id={`${row}D`}
+            reserved={seatUnavailable(`${row}D`)}
+            selected={selectedId === `${row}D`}
+            onPress={() => onToggleSeat(`${row}D`)}
+          />
+        </View>
+      ))}
+
+      <DottedRule />
+      <View style={styles.rearExitWrap}>
+        <View style={styles.rearExitPill}>
+          <Text style={styles.rearExitText}>Rear Exit Nearby</Text>
+        </View>
+      </View>
     </View>
   );
 }
@@ -242,6 +436,54 @@ const styles = StyleSheet.create({
   headerTitle: { flex: 1, color: TEXT, fontSize: 17, fontWeight: "700", textAlign: "left" },
   scroll: { flex: 1 },
   scrollContent: { paddingHorizontal: 16, paddingBottom: 16 },
+  warnBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    backgroundColor: "#2C2208",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#5C4818",
+    padding: 12,
+    marginBottom: 16,
+  },
+  warnText: { flex: 1, color: "#F5E6C8", fontSize: 13, lineHeight: 18, fontWeight: "600" },
+  loadingBlock: { alignItems: "center", paddingVertical: 24, gap: 12, marginBottom: 8 },
+  loadingText: { color: MUTED, fontSize: 14, fontWeight: "600" },
+  errorPanel: {
+    backgroundColor: "#2C2208",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#5C4818",
+    padding: 12,
+    marginBottom: 16,
+    gap: 10,
+  },
+  errorRow: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
+  retryBtn: {
+    alignSelf: "flex-start",
+    backgroundColor: PRIMARY,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  retryBtnText: { color: "#0A1628", fontWeight: "800", fontSize: 13 },
+  tripCard: {
+    backgroundColor: SURFACE,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: BORDER,
+    padding: 14,
+    marginBottom: 16,
+    gap: 8,
+  },
+  tripTitle: { color: TEXT, fontSize: 17, fontWeight: "800" },
+  tripRow: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
+  tripMetaText: { flex: 1, color: MUTED, fontSize: 13, lineHeight: 18, fontWeight: "600" },
+  tripFareRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 4 },
+  tripFareLabel: { color: MUTED, fontSize: 12, fontWeight: "700" },
+  tripFareValue: { color: TEXT, fontSize: 20, fontWeight: "800" },
+  seatsLeftLine: { color: "#34C759", fontSize: 12, fontWeight: "700", marginTop: 4 },
   legend: {
     flexDirection: "row",
     alignItems: "center",

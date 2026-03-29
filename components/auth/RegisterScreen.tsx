@@ -10,6 +10,7 @@ import {
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { getLoginFailureMessage } from "../../services/firebase/authErrors";
 import { UserRole } from "./LoginScreen";
 
 type RegisterScreenProps = {
@@ -54,8 +55,8 @@ export default function RegisterScreen({
         phone: phone.trim(),
         password,
       });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Registration failed");
+    } catch (err: unknown) {
+      setError(getLoginFailureMessage(err).message);
     } finally {
       setSubmitting(false);
     }

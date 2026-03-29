@@ -21,3 +21,30 @@ export async function getMyBookings() {
     auth: true,
   });
 }
+
+export type TripBookingRow = {
+  id: string;
+  seatId: string;
+  status: string;
+  totalAmount: number;
+  currency: string;
+  userId: string;
+  passengerLabel: string;
+  createdAt: string;
+  boarded?: boolean;
+  boardedAt?: string | null;
+};
+
+export async function getBookingsForTrip(tripId: string) {
+  return apiRequest<{ items: TripBookingRow[] }>(`/bookings/trip/${encodeURIComponent(tripId)}`, {
+    auth: true,
+  });
+}
+
+export async function setBookingBoarded(bookingId: string, boarded: boolean) {
+  return apiRequest<TripBookingRow>(`/bookings/${encodeURIComponent(bookingId)}/boarded`, {
+    method: "PATCH",
+    auth: true,
+    body: { boarded },
+  });
+}

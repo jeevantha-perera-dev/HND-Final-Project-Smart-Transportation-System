@@ -353,7 +353,7 @@ export async function searchBusRoutes(fromPlace: Place, toPlace: Place): Promise
       const common = fromStop.routes.filter((route) => toStop.routes.includes(route));
       for (const routeNumber of common) {
         const id = `${routeNumber}-${fromStop.id}-${toStop.id}`;
-        const seatsAvailable = randomSeats(id);
+        const seatsAvailable = 0;
         const isExpress = /e/i.test(routeNumber) || metrics.distanceKm > 20;
         routeMatches.push(
           buildBusResultBase(metrics, {

@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getApp, getApps, initializeApp } from "firebase/app";
 import { connectAuthEmulator, getAuth, getReactNativePersistence, initializeAuth, type Auth } from "firebase/auth";
+import { connectStorageEmulator, getStorage, type FirebaseStorage } from "firebase/storage";
 
 const firebaseConfig = {
   apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY ?? "demo-api-key",
@@ -34,12 +35,33 @@ if (AUTH_EMULATOR_URL && !authGlobal.__authEmulatorConnected) {
   authGlobal.__authEmulatorConnected = true;
 }
 
+const storage: FirebaseStorage = getStorage(app);
+
+const rawStorageHost = process.env.EXPO_PUBLIC_FIREBASE_STORAGE_EMULATOR_HOST?.trim();
+const STORAGE_EMULATOR_HOST = rawStorageHost
+  ? rawStorageHost.includes(":")
+    ? rawStorageHost.split(":")[0]!
+    : rawStorageHost
+  : null;
+const STORAGE_EMULATOR_PORT = rawStorageHost?.includes(":")
+  ? Number(rawStorageHost.split(":")[1]) || 9199
+  : 9199;
+
+const storageGlobal = globalThis as typeof globalThis & { __firebaseStorageEmulator?: boolean };
+if (STORAGE_EMULATOR_HOST && __DEV__ && !storageGlobal.__firebaseStorageEmulator) {
+  connectStorageEmulator(storage, STORAGE_EMULATOR_HOST, STORAGE_EMULATOR_PORT);
+  storageGlobal.__firebaseStorageEmulator = true;
+}
+
 if (__DEV__) {
   console.log("🔥 Firebase project:", firebaseConfig.projectId);
   console.log("🔥 Auth domain:", firebaseConfig.authDomain);
   if (AUTH_EMULATOR_URL) {
     console.log("🔥 Using Firebase Auth Emulator at", AUTH_EMULATOR_URL);
   }
+  if (STORAGE_EMULATOR_HOST) {
+    console.log("🔥 Storage emulator:", STORAGE_EMULATOR_HOST, STORAGE_EMULATOR_PORT);
+  }
 }
 
-export { app, auth };
+export { app, auth, storage };

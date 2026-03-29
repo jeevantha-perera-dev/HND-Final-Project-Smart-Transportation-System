@@ -5,7 +5,7 @@ import { collections } from "../db/collections";
 import { firestore } from "../db/firestore";
 import { asyncHandler } from "../lib/asyncHandler";
 import { toDate, toIso, toNumber } from "../lib/firestoreUtils";
-import { requireAuth } from "../lib/auth";
+import { requireAuth, requireRole } from "../lib/auth";
 import { HttpError } from "../lib/httpError";
 
 const seatLockSchema = z.object({
@@ -18,7 +18,115 @@ const confirmSchema = z.object({
   bookingId: z.string().min(1),
 });
 
+const setBoardedSchema = z.object({
+  boarded: z.boolean(),
+});
+
 export const bookingRouter = Router();
+
+bookingRouter.get(
+  "/trip/:tripId",
+  requireAuth,
+  requireRole("DRIVER", "ADMIN"),
+  asyncHandler(async (req, res) => {
+    const tripId = z.string().min(1).parse(req.params.tripId);
+    const tripSnap = await firestore.collection(collections.trips).doc(tripId).get();
+    if (!tripSnap.exists) throw new HttpError(404, "Trip not found");
+    const trip = tripSnap.data()!;
+    const driverId = String(trip.driverId ?? "");
+    if (req.auth!.role !== "ADMIN") {
+      if (!driverId || driverId !== req.auth!.userId) {
+        throw new HttpError(403, "Not allowed to view bookings for this trip");
+      }
+    }
+
+    const bookingsSnap = await firestore.collection(collections.bookings).where("tripId", "==", tripId).get();
+    const items = await Promise.all(
+      bookingsSnap.docs.map(async (doc) => {
+        const booking = doc.data();
+        let passengerLabel = String(booking.userId ?? "");
+        const userSnap = await firestore.collection(collections.users).doc(String(booking.userId)).get();
+        if (userSnap.exists) {
+          const u = userSnap.data()!;
+          passengerLabel = String(u.fullName ?? u.email ?? u.displayName ?? passengerLabel);
+        }
+        const boarded = Boolean(booking.boarded);
+        return {
+          id: doc.id,
+          seatId: String(booking.seatId ?? ""),
+          status: String(booking.status ?? ""),
+          totalAmount: toNumber(booking.totalAmount),
+          currency: "LKR",
+          userId: String(booking.userId ?? ""),
+          passengerLabel,
+          createdAt: toIso(booking.createdAt),
+          boarded,
+          boardedAt: booking.boardedAt ? toIso(booking.boardedAt) : null,
+        };
+      })
+    );
+
+    res.json({ items });
+  })
+);
+
+bookingRouter.patch(
+  "/:bookingId/boarded",
+  requireAuth,
+  requireRole("DRIVER", "ADMIN"),
+  asyncHandler(async (req, res) => {
+    const bookingId = z.string().min(1).parse(req.params.bookingId);
+    const payload = setBoardedSchema.parse(req.body);
+
+    const bookingRef = firestore.collection(collections.bookings).doc(bookingId);
+    const bookingSnap = await bookingRef.get();
+    if (!bookingSnap.exists) throw new HttpError(404, "Booking not found");
+    const booking = bookingSnap.data()!;
+    const tripId = String(booking.tripId ?? "");
+    if (!tripId) throw new HttpError(400, "Booking has no trip");
+
+    const tripSnap = await firestore.collection(collections.trips).doc(tripId).get();
+    if (!tripSnap.exists) throw new HttpError(404, "Trip not found");
+    const trip = tripSnap.data()!;
+    const driverId = String(trip.driverId ?? "");
+    if (req.auth!.role !== "ADMIN") {
+      if (!driverId || driverId !== req.auth!.userId) {
+        throw new HttpError(403, "Not allowed to update this booking");
+      }
+    }
+
+    const now = new Date().toISOString();
+    await bookingRef.set(
+      {
+        boarded: payload.boarded,
+        boardedAt: payload.boarded ? now : null,
+        updatedAt: now,
+      },
+      { merge: true }
+    );
+
+    const updated = (await bookingRef.get()).data()!;
+    let passengerLabel = String(updated.userId ?? "");
+    const userSnap = await firestore.collection(collections.users).doc(String(updated.userId)).get();
+    if (userSnap.exists) {
+      const u = userSnap.data()!;
+      passengerLabel = String(u.fullName ?? u.email ?? u.displayName ?? passengerLabel);
+    }
+
+    res.json({
+      id: bookingId,
+      seatId: String(updated.seatId ?? ""),
+      status: String(updated.status ?? ""),
+      totalAmount: toNumber(updated.totalAmount),
+      currency: "LKR",
+      userId: String(updated.userId ?? ""),
+      passengerLabel,
+      createdAt: toIso(updated.createdAt),
+      boarded: Boolean(updated.boarded),
+      boardedAt: updated.boardedAt ? toIso(updated.boardedAt) : null,
+    });
+  })
+);
 
 bookingRouter.post(
   "/seat-lock",

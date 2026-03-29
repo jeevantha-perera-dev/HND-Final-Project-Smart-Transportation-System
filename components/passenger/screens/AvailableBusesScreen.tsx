@@ -5,6 +5,7 @@ import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-n
 import { SafeAreaView } from "react-native-safe-area-context";
 import { PassengerHomeStackParamList } from "../types";
 import { searchBusRoutes } from "../../../services/locationService";
+import { enrichBusResultsWithTrips } from "../../../services/tripMatch";
 import { BusResult } from "../../../types/bus";
 import { formatArrivingHeadline, formatJourneyDuration } from "../../../utils/eta";
 
@@ -41,14 +42,24 @@ export default function AvailableBusesScreen({ navigation, route }: Props) {
     setRetrying(false);
     setError(null);
     try {
-      const data = await searchBusRoutes(route.params.fromPlace, route.params.toPlace);
+      const raw = await searchBusRoutes(route.params.fromPlace, route.params.toPlace);
+      const data = await enrichBusResultsWithTrips(
+        raw,
+        route.params.fromPlace.displayName || route.params.fromPlace.name,
+        route.params.toPlace.displayName || route.params.toPlace.name
+      );
       setItems(data);
     } catch (firstError) {
       console.warn("[bus-search] initial fetch failed", firstError);
       setRetrying(true);
       try {
         await new Promise((resolve) => setTimeout(resolve, 1500));
-        const retried = await searchBusRoutes(route.params.fromPlace, route.params.toPlace);
+        const retriedRaw = await searchBusRoutes(route.params.fromPlace, route.params.toPlace);
+        const retried = await enrichBusResultsWithTrips(
+          retriedRaw,
+          route.params.fromPlace.displayName || route.params.fromPlace.name,
+          route.params.toPlace.displayName || route.params.toPlace.name
+        );
         setItems(retried);
       } catch (secondError) {
         console.warn("[bus-search] retry failed", secondError);
@@ -70,7 +81,13 @@ export default function AvailableBusesScreen({ navigation, route }: Props) {
           if (mounted) setError("Could not fetch live data. Check your connection.");
           return;
         }
-        const result = await searchBusRoutes(route.params.fromPlace, route.params.toPlace);
+        const resultRaw = await searchBusRoutes(route.params.fromPlace, route.params.toPlace);
+        if (!mounted) return;
+        const result = await enrichBusResultsWithTrips(
+          resultRaw,
+          route.params.fromPlace.displayName || route.params.fromPlace.name,
+          route.params.toPlace.displayName || route.params.toPlace.name
+        );
         if (!mounted) return;
         setItems(result);
       } catch (err) {
@@ -176,14 +193,15 @@ export default function AvailableBusesScreen({ navigation, route }: Props) {
             <BusCard
               key={bus.id}
               bus={bus}
-              onSelect={() =>
+              onSelect={() => {
+                if (!bus.tripId) return;
                 navigation.navigate("SeatSelection", {
-                  tripId: bus.id,
+                  tripId: bus.tripId,
                   busId: `R-${bus.routeNumber}`,
                   routeName: bus.routeName,
                   price: `LKR ${bus.price.toFixed(0)}`,
-                })
-              }
+                });
+              }}
             />
             ))}
 
@@ -202,6 +220,7 @@ export default function AvailableBusesScreen({ navigation, route }: Props) {
 }
 
 function BusCard({ bus, onSelect }: { bus: BusResult; onSelect: () => void }) {
+  const bookable = Boolean(bus.tripId);
   return (
     <View style={styles.card}>
       <View style={styles.cardTop}>
@@ -252,10 +271,11 @@ function BusCard({ bus, onSelect }: { bus: BusResult; onSelect: () => void }) {
         <View>
           <Text style={styles.priceLabel}>SINGLE TRIP</Text>
           <Text style={styles.priceValue}>{`LKR ${bus.fareLKR.toFixed(0)}`}</Text>
+          {!bookable ? <Text style={styles.noService}>No scheduled service for this route</Text> : null}
         </View>
-        <Pressable style={styles.selectBtn} onPress={onSelect}>
-          <Text style={styles.selectBtnText}>Select</Text>
-          <Ionicons name="chevron-forward" size={15} color="#FFFFFF" />
+        <Pressable style={[styles.selectBtn, !bookable && styles.selectBtnDisabled]} onPress={onSelect} disabled={!bookable}>
+          <Text style={styles.selectBtnText}>{bookable ? "Select" : "Unavailable"}</Text>
+          {bookable ? <Ionicons name="chevron-forward" size={15} color="#FFFFFF" /> : null}
         </Pressable>
       </View>
     </View>
@@ -439,6 +459,8 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   selectBtnText: { color: "#FFFFFF", fontSize: 15, fontWeight: "700" },
+  selectBtnDisabled: { opacity: 0.45, backgroundColor: "#3A3D48" },
+  noService: { color: "#FF9F0A", fontSize: 11, fontWeight: "600", marginTop: 6 },
   footerHint: {
     alignItems: "center",
     marginTop: 12,

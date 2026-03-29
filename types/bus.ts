@@ -26,6 +26,8 @@ export type BusResultType = "Recommended" | "Cheapest" | "Earliest" | "Express";
 
 export type BusResult = {
   id: string;
+  /** Firestore trips doc id when resolved via API; null/undefined if not bookable. */
+  tripId?: string | null;
   routeNumber: string;
   routeName: string;
   originStop: BusStop;

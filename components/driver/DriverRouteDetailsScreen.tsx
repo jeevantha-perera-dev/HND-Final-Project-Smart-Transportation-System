@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { DriverRouteSummary } from "./DriverRoutesListScreen";
@@ -9,11 +9,28 @@ type DriverRouteDetailsScreenProps = {
   onStartTrip?: () => void;
 };
 
-const STOPS = [
-  { id: "1", name: "Downtown Terminal", time: "08:30 AM", status: "Start" },
-  { id: "2", name: "City Hall Junction", time: "08:42 AM", status: "Stop" },
-  { id: "3", name: "Central Station", time: "09:15 AM", status: "End" },
-];
+type TimelineStop = { id: string; name: string; time: string; status: "Start" | "Stop" | "End" };
+
+function buildTimeline(routeData?: DriverRouteSummary | null): TimelineStop[] {
+  if (!routeData) {
+    return [
+      { id: "1", name: "Origin", time: "—", status: "Start" },
+      { id: "2", name: "Destination", time: "—", status: "End" },
+    ];
+  }
+  const names =
+    routeData.stops && routeData.stops.length > 0
+      ? routeData.stops
+      : [routeData.origin ?? "Origin", routeData.destination ?? "Destination"];
+  const dep = routeData.departureTime ?? routeData.departure;
+  const arr = routeData.arrivalTime ?? routeData.eta;
+  return names.map((name, index) => ({
+    id: String(index),
+    name,
+    time: index === 0 ? dep : index === names.length - 1 ? arr : "Via",
+    status: index === 0 ? "Start" : index === names.length - 1 ? "End" : "Stop",
+  }));
+}
 
 export default function DriverRouteDetailsScreen({
   routeData,
@@ -21,6 +38,7 @@ export default function DriverRouteDetailsScreen({
   onStartTrip,
 }: DriverRouteDetailsScreenProps) {
   const [showStops, setShowStops] = useState(true);
+  const stops = useMemo(() => buildTimeline(routeData), [routeData]);
   const [checks, setChecks] = useState({
     fuel: true,
     brakes: true,
@@ -45,12 +63,12 @@ export default function DriverRouteDetailsScreen({
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.routeCard}>
-          <Text style={styles.routeId}>{routeData?.id ?? "R-402"}</Text>
-          <Text style={styles.routeName}>{routeData?.name ?? "Route 402 • Central Station"}</Text>
+          <Text style={styles.routeId}>{routeData?.routeId ?? "—"}</Text>
+          <Text style={styles.routeName}>{routeData?.name ?? "Route"}</Text>
           <View style={styles.metaRow}>
-            <Meta icon="bus-outline" text={routeData?.vehicle ?? "BUS-9920"} />
-            <Meta icon="play-circle-outline" text={`Dep ${routeData?.departure ?? "08:30 AM"}`} />
-            <Meta icon="flag-outline" text={`ETA ${routeData?.eta ?? "09:15 AM"}`} />
+            <Meta icon="bus-outline" text={routeData?.vehicle ?? "—"} />
+            <Meta icon="play-circle-outline" text={`Dep ${routeData?.departure ?? "—"}`} />
+            <Meta icon="flag-outline" text={`ETA ${routeData?.eta ?? "—"}`} />
           </View>
         </View>
 
@@ -60,11 +78,11 @@ export default function DriverRouteDetailsScreen({
         </Pressable>
         {showStops ? (
           <View style={styles.stopsCard}>
-            {STOPS.map((stop, index) => (
+            {stops.map((stop, index) => (
               <View key={stop.id} style={styles.stopRow}>
                 <View style={styles.nodeCol}>
                   <View style={[styles.node, stop.status === "Start" && styles.nodeStart, stop.status === "End" && styles.nodeEnd]} />
-                  {index < STOPS.length - 1 ? <View style={styles.nodeLine} /> : null}
+                  {index < stops.length - 1 ? <View style={styles.nodeLine} /> : null}
                 </View>
                 <View style={styles.stopTextCol}>
                   <Text style={styles.stopName}>{stop.name}</Text>

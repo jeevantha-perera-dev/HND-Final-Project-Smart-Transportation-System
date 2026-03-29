@@ -1,48 +1,46 @@
-import React, { useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import React, { useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { listRoutes, type CatalogRoute } from "../../services/api/routes";
 
 export type DriverRouteSummary = {
   id: string;
+  routeId: string;
   name: string;
   vehicle: string;
   departure: string;
   eta: string;
   status: "Active" | "Upcoming" | "Completed";
+  origin?: string;
+  destination?: string;
+  stops?: string[];
+  departureTime?: string;
+  arrivalTime?: string;
 };
+
+function mapCatalogRoute(cat: CatalogRoute): DriverRouteSummary {
+  const safe = cat.routeId.replace(/[^\w.-]/g, "_");
+  return {
+    id: cat.id,
+    routeId: cat.routeId,
+    name: cat.routeName || `${cat.origin} → ${cat.destination}`,
+    vehicle: `BUS-${safe}`,
+    departure: cat.departureTime || "—",
+    eta: cat.arrivalTime || "—",
+    status: "Upcoming",
+    origin: cat.origin,
+    destination: cat.destination,
+    stops: cat.stops,
+    departureTime: cat.departureTime,
+    arrivalTime: cat.arrivalTime,
+  };
+}
 
 type DriverRoutesListScreenProps = {
   onBack?: () => void;
   onOpenRoute?: (route: DriverRouteSummary) => void;
   onOpenTripHistory?: () => void;
 };
-
-const ROUTES: DriverRouteSummary[] = [
-  {
-    id: "R-402",
-    name: "Route 402 • Central Station",
-    vehicle: "BUS-9920",
-    departure: "08:30 AM",
-    eta: "09:15 AM",
-    status: "Active",
-  },
-  {
-    id: "R-115",
-    name: "Route 115 • Tech Park Loop",
-    vehicle: "BUS-7714",
-    departure: "10:00 AM",
-    eta: "10:40 AM",
-    status: "Upcoming",
-  },
-  {
-    id: "R-089",
-    name: "Route 089 • Airport Connector",
-    vehicle: "BUS-6612",
-    departure: "06:00 AM",
-    eta: "06:55 AM",
-    status: "Completed",
-  },
-];
 
 const FILTERS: ("All" | DriverRouteSummary["status"])[] = [
   "All",
@@ -58,15 +56,39 @@ export default function DriverRoutesListScreen({
 }: DriverRoutesListScreenProps) {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>("All");
+  const [routes, setRoutes] = useState<DriverRouteSummary[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const { items } = await listRoutes({ limit: 150 });
+        if (!mounted) return;
+        setRoutes(items.map(mapCatalogRoute));
+        setLoadError(null);
+      } catch {
+        if (!mounted) return;
+        setRoutes([]);
+        setLoadError("Could not load routes. Check API and Firestore seed.");
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const filteredRoutes = useMemo(() => {
-    return ROUTES.filter((route) => {
+    return routes.filter((route) => {
       const filterMatch = filter === "All" ? true : route.status === filter;
-      const text = `${route.id} ${route.name} ${route.vehicle}`.toLowerCase();
+      const text = `${route.routeId} ${route.name} ${route.vehicle}`.toLowerCase();
       const queryMatch = text.includes(query.trim().toLowerCase());
       return filterMatch && queryMatch;
     });
-  }, [filter, query]);
+  }, [filter, query, routes]);
 
   return (
     <View style={styles.screen}>
@@ -109,6 +131,16 @@ export default function DriverRoutesListScreen({
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        {loading ? (
+          <View style={styles.loadingWrap}>
+            <ActivityIndicator color="#8AC2FF" />
+            <Text style={styles.loadingText}>Loading route catalog…</Text>
+          </View>
+        ) : null}
+        {!loading && loadError ? <Text style={styles.errorText}>{loadError}</Text> : null}
+        {!loading && !loadError && filteredRoutes.length === 0 ? (
+          <Text style={styles.emptyText}>No routes match your filters.</Text>
+        ) : null}
         {filteredRoutes.map((route) => (
           <Pressable
             key={route.id}
@@ -116,7 +148,7 @@ export default function DriverRoutesListScreen({
             onPress={() => onOpenRoute?.(route)}
           >
             <View style={styles.routeTop}>
-              <Text style={styles.routeId}>{route.id}</Text>
+              <Text style={styles.routeId}>{route.routeId}</Text>
               <Text
                 style={[
                   styles.statusPill,
@@ -212,4 +244,8 @@ const styles = StyleSheet.create({
   metaRow: { marginTop: 10, flexDirection: "row", gap: 8, flexWrap: "wrap" },
   metaItem: { flexDirection: "row", alignItems: "center", gap: 4 },
   metaText: { color: "#A8BBCE", fontSize: 12, fontWeight: "600" },
+  loadingWrap: { paddingVertical: 24, alignItems: "center", gap: 8 },
+  loadingText: { color: "#97ACC1", fontSize: 13 },
+  errorText: { color: "#FF8A8A", paddingVertical: 12, fontWeight: "600" },
+  emptyText: { color: "#97ACC1", paddingVertical: 12 },
 });

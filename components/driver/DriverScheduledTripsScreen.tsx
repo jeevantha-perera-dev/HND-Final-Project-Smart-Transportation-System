@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { ApiError } from "../../services/api/client";
-import { DriverScheduledTrip, getMyScheduledTrips } from "../../services/api/trips";
+import { cancelTrip, DriverScheduledTrip, getMyScheduledTrips } from "../../services/api/trips";
 
 type DriverScheduledTripsScreenProps = {
   onBack?: () => void;
@@ -18,6 +18,7 @@ export default function DriverScheduledTripsScreen({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [items, setItems] = useState<DriverScheduledTrip[]>([]);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
 
   const loadTrips = useCallback(async () => {
     setLoading(true);
@@ -39,6 +40,38 @@ export default function DriverScheduledTripsScreen({
   useEffect(() => {
     void loadTrips();
   }, [loadTrips]);
+
+  const confirmCancelTrip = useCallback(
+    (trip: DriverScheduledTrip) => {
+      Alert.alert(
+        "Cancel trip",
+        `Cancel this scheduled trip?\n\n${trip.routeName}\nPassengers will no longer see it for booking.`,
+        [
+          { text: "No", style: "cancel" },
+          {
+            text: "Cancel trip",
+            style: "destructive",
+            onPress: () => {
+              void (async () => {
+                setCancellingId(trip.id);
+                try {
+                  await cancelTrip(trip.id);
+                  await loadTrips();
+                } catch (err) {
+                  const msg =
+                    err instanceof ApiError ? err.message : "Could not cancel the trip. Try again.";
+                  Alert.alert("Cancel failed", msg);
+                } finally {
+                  setCancellingId(null);
+                }
+              })();
+            },
+          },
+        ]
+      );
+    },
+    [loadTrips]
+  );
 
   return (
     <View style={styles.screen}>
@@ -97,9 +130,27 @@ export default function DriverScheduledTripsScreen({
                 <Text style={styles.locationText}>{trip.destinationStopName}</Text>
               </View>
 
-              <Pressable style={styles.startBtn} onPress={() => onSelectTrip?.(trip)}>
-                <Text style={styles.startBtnText}>Start This Trip</Text>
-              </Pressable>
+              <View style={styles.actionsRow}>
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.cancelBtn,
+                    pressed && styles.cancelBtnPressed,
+                    cancellingId === trip.id && styles.btnDisabled,
+                  ]}
+                  onPress={() => confirmCancelTrip(trip)}
+                  disabled={cancellingId !== null}
+                >
+                  <Ionicons name="ban-outline" size={18} color="#FF8A9B" />
+                  <Text style={styles.cancelBtnText}>Cancel</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.startBtn, cancellingId === trip.id && styles.btnDisabled]}
+                  onPress={() => onSelectTrip?.(trip)}
+                  disabled={cancellingId !== null}
+                >
+                  <Text style={styles.startBtnText}>Start This Trip</Text>
+                </Pressable>
+              </View>
             </View>
           ))}
         </ScrollView>
@@ -186,13 +237,44 @@ const styles = StyleSheet.create({
   metaText: { color: "#A8BBCE", fontSize: 12, fontWeight: "600" },
   locationRow: { marginTop: 8, flexDirection: "row", alignItems: "center", gap: 6 },
   locationText: { color: "#C9DBEC", fontSize: 12, fontWeight: "600", flexShrink: 1 },
+  actionsRow: { marginTop: 14, flexDirection: "row", gap: 12, alignItems: "stretch" },
+  cancelBtn: {
+    flex: 1,
+    minHeight: 48,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(255, 138, 155, 0.42)",
+    backgroundColor: "rgba(45, 28, 36, 0.95)",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    paddingHorizontal: 12,
+  },
+  cancelBtnPressed: {
+    backgroundColor: "rgba(58, 32, 42, 0.98)",
+    borderColor: "rgba(255, 160, 172, 0.55)",
+    transform: [{ scale: 0.98 }],
+  },
+  cancelBtnText: {
+    color: "#FFD0D8",
+    fontSize: 14,
+    fontWeight: "800",
+    letterSpacing: 0.3,
+  },
   startBtn: {
-    marginTop: 12,
-    height: 42,
-    borderRadius: 10,
+    flex: 1,
+    minHeight: 48,
+    borderRadius: 14,
     backgroundColor: "#66AEF2",
     alignItems: "center",
     justifyContent: "center",
+    shadowColor: "#4A9EE8",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 4,
   },
-  startBtnText: { color: "#1B3652", fontSize: 14, fontWeight: "800" },
+  startBtnText: { color: "#0D2135", fontSize: 14, fontWeight: "800", letterSpacing: 0.2 },
+  btnDisabled: { opacity: 0.45 },
 });

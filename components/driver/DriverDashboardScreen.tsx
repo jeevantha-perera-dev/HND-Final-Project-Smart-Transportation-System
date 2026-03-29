@@ -1,20 +1,42 @@
 import React from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import type { DriverScheduledTrip, DriverTripStats } from "../../services/api/trips";
 
 type DriverDashboardScreenProps = {
   onStartTrip?: () => void;
-  onViewRoutes?: () => void;
   onViewTripHistory?: () => void;
   onScheduleTrip?: () => void;
+  driverName?: string;
+  nextTrip?: DriverScheduledTrip | null;
+  nextTripLoading?: boolean;
+  tripStats?: DriverTripStats | null;
 };
+
+function formatClock(iso: string) {
+  try {
+    return new Date(iso).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+  } catch {
+    return "—";
+  }
+}
+
+function minsUntil(iso: string) {
+  const m = Math.round((new Date(iso).getTime() - Date.now()) / 60000);
+  return Math.max(0, m);
+}
 
 export default function DriverDashboardScreen({
   onStartTrip,
-  onViewRoutes,
   onViewTripHistory,
   onScheduleTrip,
+  driverName = "Driver",
+  nextTrip = null,
+  nextTripLoading = false,
+  tripStats = null,
 }: DriverDashboardScreenProps) {
+  const greetingName = driverName.split(/\s+/)[0] || "Driver";
+
   return (
     <ScrollView
       style={styles.container}
@@ -22,7 +44,7 @@ export default function DriverDashboardScreen({
       showsVerticalScrollIndicator={false}
     >
       <View style={styles.greetingWrap}>
-        <Text style={styles.greeting}>Good Morning, John</Text>
+        <Text style={styles.greeting}>{`Good Morning, ${greetingName}`}</Text>
         <View style={styles.statusRow}>
           <Ionicons name="shield-checkmark-outline" size={15} color="#A8B8C9" />
           <Text style={styles.statusText}>Verified Driver</Text>
@@ -42,61 +64,70 @@ export default function DriverDashboardScreen({
           <Pressable onPress={onScheduleTrip}>
             <Text style={styles.sectionLink}>Schedule a Trip</Text>
           </Pressable>
-          <Pressable onPress={onViewRoutes}>
-            <Text style={styles.sectionLink}>View All Routes</Text>
-          </Pressable>
         </View>
       </View>
 
       <View style={styles.assignmentCard}>
         <View style={styles.assignmentHeader}>
-          <Text style={styles.assignmentTag}>Current Assignment</Text>
+          <Text style={styles.assignmentTag}>Next scheduled trip</Text>
           <View style={styles.assignmentMeta}>
             <Text style={styles.assignmentMetaLabel}>Departs in</Text>
-            <Text style={styles.assignmentMetaValue}>12 mins</Text>
+            <Text style={styles.assignmentMetaValue}>
+              {nextTripLoading ? "…" : nextTrip ? `${minsUntil(nextTrip.departureAt)} mins` : "—"}
+            </Text>
           </View>
         </View>
 
-        <Text style={styles.routeTitle}>Route 402 - Express</Text>
+        {nextTripLoading ? (
+          <Text style={styles.routeTitle}>Loading your schedule…</Text>
+        ) : nextTrip ? (
+          <>
+            <Text style={styles.routeTitle}>{nextTrip.routeName}</Text>
 
-        <View style={styles.timelineWrap}>
-          <View style={styles.timelineNodeWrap}>
-            <View style={[styles.timelineNode, styles.timelineNodePrimary]} />
-            <View style={styles.timelineLine} />
-            <View style={styles.timelineNode} />
-          </View>
-          <View style={styles.timelineContent}>
-            <View style={styles.stopBlock}>
-              <Text style={styles.stopTitle}>Downtown Terminal</Text>
-              <Text style={styles.stopSubtitle}>Platform 4B - 08:30 AM</Text>
+            <View style={styles.timelineWrap}>
+              <View style={styles.timelineNodeWrap}>
+                <View style={[styles.timelineNode, styles.timelineNodePrimary]} />
+                <View style={styles.timelineLine} />
+                <View style={styles.timelineNode} />
+              </View>
+              <View style={styles.timelineContent}>
+                <View style={styles.stopBlock}>
+                  <Text style={styles.stopTitle}>{nextTrip.originStopName}</Text>
+                  <Text style={styles.stopSubtitle}>{`Departure — ${formatClock(nextTrip.departureAt)}`}</Text>
+                </View>
+                <View style={styles.stopBlock}>
+                  <Text style={styles.stopTitle}>{nextTrip.destinationStopName}</Text>
+                  <Text style={styles.stopSubtitle}>{`Arrival — ${formatClock(nextTrip.arrivalAt)}`}</Text>
+                </View>
+              </View>
             </View>
-            <View style={styles.stopBlock}>
-              <Text style={styles.stopTitle}>Northside Tech Park</Text>
-              <Text style={styles.stopSubtitle}>Arrival - 09:15 AM</Text>
-            </View>
-          </View>
-        </View>
 
-        <View style={styles.routeMetaRow}>
-          <View style={styles.routeMetaItem}>
-            <View style={styles.metaIconWrap}>
-              <Ionicons name="bus-outline" size={14} color="#87B9FF" />
+            <View style={styles.routeMetaRow}>
+              <View style={styles.routeMetaItem}>
+                <View style={styles.metaIconWrap}>
+                  <Ionicons name="bus-outline" size={14} color="#87B9FF" />
+                </View>
+                <View>
+                  <Text style={styles.metaLabel}>Vehicle</Text>
+                  <Text style={styles.metaValue}>{nextTrip.vehicleCode}</Text>
+                </View>
+              </View>
+              <View style={styles.routeMetaItem}>
+                <View style={styles.metaIconWrap}>
+                  <Ionicons name="people-outline" size={14} color="#87B9FF" />
+                </View>
+                <View>
+                  <Text style={styles.metaLabel}>Seats left</Text>
+                  <Text style={styles.metaValue}>{String(nextTrip.seatsAvailable)}</Text>
+                </View>
+              </View>
             </View>
-            <View>
-              <Text style={styles.metaLabel}>Vehicle</Text>
-              <Text style={styles.metaValue}>BUS-9920</Text>
-            </View>
-          </View>
-          <View style={styles.routeMetaItem}>
-            <View style={styles.metaIconWrap}>
-              <Ionicons name="people-outline" size={14} color="#87B9FF" />
-            </View>
-            <View>
-              <Text style={styles.metaLabel}>Booked</Text>
-              <Text style={styles.metaValue}>28 / 45</Text>
-            </View>
-          </View>
-        </View>
+          </>
+        ) : (
+          <Text style={styles.emptyNext}>
+            No scheduled trips yet. Tap Schedule a Trip or seed trips for the network.
+          </Text>
+        )}
       </View>
 
       <Text style={styles.sectionTitle}>TODAY&apos;S SUMMARY</Text>
@@ -106,18 +137,20 @@ export default function DriverDashboardScreen({
           <View style={[styles.summaryIcon, { backgroundColor: "#46E68A" }]}>
             <Ionicons name="cash-outline" size={18} color="#FFFFFF" />
           </View>
-          <Text style={styles.summaryValue}>$142.50</Text>
-          <Text style={styles.summaryLabel}>Earnings</Text>
-          <Text style={styles.summaryDelta}>+12% vs yesterday</Text>
+          <Text style={styles.summaryValue}>
+            {tripStats ? `LKR ${tripStats.earningsEstimateLKR.toFixed(0)}` : "LKR —"}
+          </Text>
+          <Text style={styles.summaryLabel}>Earnings (est.)</Text>
+          <Text style={styles.summaryDelta}>From your trip history</Text>
         </View>
 
         <View style={styles.summaryCard}>
           <View style={[styles.summaryIcon, { backgroundColor: "#69AFFF" }]}>
             <Ionicons name="location-outline" size={18} color="#FFFFFF" />
           </View>
-          <Text style={styles.summaryValue}>06</Text>
+          <Text style={styles.summaryValue}>{tripStats ? String(tripStats.tripsLast7Days) : "—"}</Text>
           <Text style={styles.summaryLabel}>Trips</Text>
-          <Text style={styles.summaryDelta}>Today</Text>
+          <Text style={styles.summaryDelta}>Last 7 days</Text>
         </View>
       </View>
 
@@ -262,6 +295,13 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     letterSpacing: -0.2,
     marginBottom: 12,
+  },
+  emptyNext: {
+    color: "#B8D1EA",
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: "600",
+    marginBottom: 4,
   },
   timelineWrap: {
     flexDirection: "row",
