@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import LocationAutocomplete from "../LocationAutocomplete";
 import { ApiError } from "../../services/api/client";
 import { getBookingsForTrip, type TripBookingRow } from "../../services/api/booking";
 import {
@@ -301,7 +302,10 @@ export default function DriverManualEntryScreen({
 
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          walkInDraftOpen ? styles.scrollContentWalkInDraft : null,
+        ]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
@@ -431,13 +435,17 @@ export default function DriverManualEntryScreen({
           {walkInDraftOpen ? (
             <View style={styles.walkInDraftCard}>
               <Text style={styles.walkInDraftTitle}>New walk-in</Text>
-              <TextInput
-                value={draftDestination}
-                onChangeText={setDraftDestination}
-                placeholder="Drop-off / destination (optional)"
-                placeholderTextColor="#5C6B7A"
-                style={styles.walkInDestInput}
-              />
+              <Text style={styles.walkInDestLabel}>Drop-off / destination (optional)</Text>
+              <View style={styles.walkInDestAutocompleteWrap}>
+                <LocationAutocomplete
+                  variant="driver"
+                  placeholder="Search place"
+                  value={draftDestination}
+                  onChange={setDraftDestination}
+                  onSelect={() => {}}
+                  iconType="destination"
+                />
+              </View>
               <View style={styles.walkInAmountRow}>
                 <Text style={styles.walkInAmountLabel}>Fare (LKR)</Text>
                 <TextInput
@@ -539,6 +547,8 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: "#0A121D", paddingHorizontal: 14, paddingTop: 8 },
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 24 },
+  /** Extra space so OSM suggestion list is not clipped by ScrollView while draft is open. */
+  scrollContentWalkInDraft: { paddingBottom: 260 },
   header: { height: 46, flexDirection: "row", alignItems: "center" },
   iconBtn: { width: 30, height: 30, alignItems: "center", justifyContent: "center" },
   headerTitle: { color: "#EAF2FC", fontSize: 22, fontWeight: "800", marginLeft: 6, flex: 1 },
@@ -657,6 +667,9 @@ const styles = StyleSheet.create({
     backgroundColor: "#151D28",
     borderWidth: 1,
     borderColor: "#37506D",
+    overflow: "visible",
+    zIndex: 2,
+    elevation: 8,
   },
   walkInDraftTitle: { color: "#E9F4FF", fontSize: 15, fontWeight: "800", marginBottom: 10 },
   walkInDraftError: { color: "#E88A8A", fontSize: 12, fontWeight: "600", marginTop: 6 },
@@ -694,17 +707,15 @@ const styles = StyleSheet.create({
   },
   walkInCountBadgeText: { color: "#8EC5FF", fontSize: 14, fontWeight: "800" },
   walkInRemoveBtn: { padding: 4 },
-  walkInDestInput: {
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#37506D",
-    backgroundColor: "#151D28",
-    color: "#E8F0FA",
-    fontSize: 14,
-    fontWeight: "600",
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginBottom: 8,
+  walkInDestLabel: {
+    color: "#A8B7C8",
+    fontSize: 12,
+    fontWeight: "700",
+    marginBottom: 6,
+  },
+  walkInDestAutocompleteWrap: {
+    marginBottom: 10,
+    overflow: "visible",
   },
   walkInAmountRow: { flexDirection: "row", alignItems: "center", gap: 10 },
   walkInAmountLabel: { color: "#A8B7C8", fontSize: 13, fontWeight: "700", width: 88 },

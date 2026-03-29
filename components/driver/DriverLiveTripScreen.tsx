@@ -1,5 +1,17 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import MapView, { PROVIDER_GOOGLE, type Region } from "react-native-maps";
+import * as Location from "expo-location";
 import { Ionicons } from "@expo/vector-icons";
 import { getBookingsForTrip } from "../../services/api/booking";
 import { publishDriverLocation } from "../../services/api/tracking";
@@ -24,6 +36,13 @@ type DriverLiveTripScreenProps = {
   }) => void;
 };
 
+const DEFAULT_MAP_REGION: Region = {
+  latitude: 6.9271,
+  longitude: 79.8612,
+  latitudeDelta: 0.04,
+  longitudeDelta: 0.04,
+};
+
 export default function DriverLiveTripScreen({
   trip,
   queueRefreshToken = 0,
@@ -34,6 +53,20 @@ export default function DriverLiveTripScreen({
   onOpenIncident,
   onOpenQueueDetails,
 }: DriverLiveTripScreenProps) {
+  const insets = useSafeAreaInsets();
+  const { width: windowWidth } = useWindowDimensions();
+  const statsRowInnerWidth = windowWidth - 14 * 2;
+  const statsCardWidth = (statsRowInnerWidth - 10) / 2;
+  const driverCoordsRef = useRef({
+    latitude: DEFAULT_MAP_REGION.latitude,
+    longitude: DEFAULT_MAP_REGION.longitude,
+    speedKph: 0,
+  });
+  const [mapRegion, setMapRegion] = useState<Region>(DEFAULT_MAP_REGION);
+  const [locationStatus, setLocationStatus] = useState<"pending" | "granted" | "denied">("pending");
+  const [speedKphDisplay, setSpeedKphDisplay] = useState<number | null>(null);
+  const [mapFullscreen, setMapFullscreen] = useState(false);
+  const [fullscreenMapSeed, setFullscreenMapSeed] = useState<Region>(DEFAULT_MAP_REGION);
   const [syncText, setSyncText] = useState("Sync location");
   const [queue, setQueue] = useState<
     {
@@ -101,19 +134,85 @@ export default function DriverLiveTripScreen({
     return "Route 42A - Active";
   }, [trip?.routeName]);
 
+  useEffect(() => {
+    if (Platform.OS === "web") {
+      setLocationStatus("denied");
+      return;
+    }
+    let subscription: Location.LocationSubscription | null = null;
+    let cancelled = false;
+
+    const start = async () => {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (cancelled) return;
+      if (status !== "granted") {
+        setLocationStatus("denied");
+        return;
+      }
+      setLocationStatus("granted");
+
+      const applyPosition = (coords: Location.LocationObjectCoords) => {
+        const { latitude, longitude, speed } = coords;
+        driverCoordsRef.current = {
+          latitude,
+          longitude,
+          speedKph:
+            speed != null && speed >= 0
+              ? Math.min(200, Math.round(speed * 3.6))
+              : driverCoordsRef.current.speedKph,
+        };
+        setMapRegion((prev) => ({
+          ...prev,
+          latitude,
+          longitude,
+        }));
+        if (speed != null && speed >= 0) {
+          setSpeedKphDisplay(Math.min(200, Math.round(speed * 3.6)));
+        }
+      };
+
+      try {
+        const current = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+        if (cancelled) return;
+        applyPosition(current.coords);
+      } catch {
+        /* keep default region */
+      }
+
+      subscription = await Location.watchPositionAsync(
+        {
+          accuracy: Location.Accuracy.Balanced,
+          timeInterval: 4000,
+          distanceInterval: 15,
+        },
+        (loc) => {
+          applyPosition(loc.coords);
+        }
+      );
+    };
+
+    void start();
+    return () => {
+      cancelled = true;
+      subscription?.remove();
+    };
+  }, []);
+
   const pushLocation = useCallback(async () => {
     if (!activeTripId) {
       setSyncText("No trip id");
       return;
     }
     try {
-      const jitter = Math.random() * 0.001;
+      const { latitude, longitude, speedKph } = driverCoordsRef.current;
       await publishDriverLocation({
         tripId: activeTripId,
         vehicleId: activeVehicleCode,
-        latitude: 6.9271 + jitter,
-        longitude: 79.8612 + jitter,
-        speedKph: 55,
+        latitude,
+        longitude,
+        speedKph,
         nextStopName,
         etaMinutes: 4,
         seatsAvailable: trip?.seatsAvailable ?? 0,
@@ -153,9 +252,26 @@ export default function DriverLiveTripScreen({
   );
   const tripEarningsLkr = appEarningsLkr + walkInCashLkr;
 
+  const openMapFullscreen = useCallback(() => {
+    setFullscreenMapSeed({
+      ...mapRegion,
+      latitudeDelta: Math.max(mapRegion.latitudeDelta, 0.015),
+      longitudeDelta: Math.max(mapRegion.longitudeDelta, 0.015),
+    });
+    setMapFullscreen(true);
+  }, [mapRegion]);
+
+  const closeMapFullscreen = useCallback(() => {
+    setMapFullscreen(false);
+  }, []);
+
   return (
     <View style={styles.screen}>
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={[styles.content, { width: windowWidth }]}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.header}>
           <Pressable style={styles.backBtn} onPress={onBack}>
             <Ionicons name="chevron-back" size={22} color="#EAF2FB" />
@@ -166,10 +282,42 @@ export default function DriverLiveTripScreen({
           </Pressable>
         </View>
 
-        <View style={styles.mapWrap}>
-          <View style={styles.mapPlaceholder} />
-          <View style={styles.routeLineA} />
-          <View style={styles.routeLineB} />
+        <Pressable
+          style={styles.mapWrap}
+          collapsable={false}
+          onPress={Platform.OS === "web" ? openMapFullscreen : undefined}
+          disabled={Platform.OS !== "web"}
+        >
+          {Platform.OS === "web" ? (
+            <View style={styles.mapPlaceholder}>
+              <Text style={styles.mapWebNote}>Live map is available on the mobile app.</Text>
+              <Text style={styles.mapExpandHint}>Tap for full screen</Text>
+            </View>
+          ) : (
+            <MapView
+              style={StyleSheet.absoluteFillObject}
+              provider={Platform.OS === "android" ? PROVIDER_GOOGLE : undefined}
+              initialRegion={DEFAULT_MAP_REGION}
+              region={mapRegion}
+              showsUserLocation={locationStatus === "granted"}
+              showsMyLocationButton={false}
+              scrollEnabled={false}
+              zoomEnabled={false}
+              rotateEnabled={false}
+              pitchEnabled={false}
+              toolbarEnabled={false}
+              mapType="standard"
+              onPress={openMapFullscreen}
+            />
+          )}
+
+          {locationStatus === "denied" && Platform.OS !== "web" ? (
+            <View style={styles.mapPermissionBanner} pointerEvents="box-none">
+              <Text style={styles.mapPermissionText}>
+                Turn on location access to see your position on the map.
+              </Text>
+            </View>
+          ) : null}
 
           <View style={styles.turnCard}>
             <View style={styles.turnIconWrap}>
@@ -182,19 +330,81 @@ export default function DriverLiveTripScreen({
           </View>
 
           <View style={styles.speedChip}>
-            <Text style={styles.speedValue}>55</Text>
+            <Text style={styles.speedValue}>
+              {speedKphDisplay != null ? String(speedKphDisplay) : "—"}
+            </Text>
             <Text style={styles.speedUnit}>km/h</Text>
           </View>
-        </View>
+
+          {Platform.OS !== "web" ? (
+            <View
+              style={[
+                styles.mapExpandBadge,
+                locationStatus === "denied" ? styles.mapExpandBadgeAboveBanner : null,
+              ]}
+              pointerEvents="none"
+            >
+              <Ionicons name="expand-outline" size={14} color="#B8D4F0" />
+              <Text style={styles.mapExpandBadgeText}>Full screen</Text>
+            </View>
+          ) : null}
+        </Pressable>
+
+        <Modal
+          visible={mapFullscreen}
+          animationType="fade"
+          presentationStyle="fullScreen"
+          statusBarTranslucent
+          onRequestClose={closeMapFullscreen}
+        >
+          <View style={styles.fullscreenRoot}>
+            {Platform.OS === "web" ? (
+              <View style={styles.fullscreenWebBody}>
+                <Text style={styles.mapWebNote}>Live map is available on the mobile app.</Text>
+                <Pressable style={styles.fullscreenCloseBtnWide} onPress={closeMapFullscreen}>
+                  <Text style={styles.fullscreenCloseBtnText}>Close</Text>
+                </Pressable>
+              </View>
+            ) : (
+              <>
+                <MapView
+                  style={StyleSheet.absoluteFillObject}
+                  provider={Platform.OS === "android" ? PROVIDER_GOOGLE : undefined}
+                  initialRegion={fullscreenMapSeed}
+                  showsUserLocation={locationStatus === "granted"}
+                  showsMyLocationButton={false}
+                  scrollEnabled
+                  zoomEnabled
+                  rotateEnabled
+                  pitchEnabled
+                  toolbarEnabled={false}
+                  mapType="standard"
+                />
+                <Pressable
+                  style={[
+                    styles.fullscreenCloseBtn,
+                    { top: Math.max(insets.top, 12) + 6, right: 12 },
+                  ]}
+                  onPress={closeMapFullscreen}
+                  accessibilityLabel="Close map"
+                >
+                  <Ionicons name="close" size={26} color="#0A111C" />
+                </Pressable>
+              </>
+            )}
+          </View>
+        </Modal>
 
         <View style={styles.nextStopCard}>
           <View style={styles.nextStopTop}>
-            <View>
+            <View style={styles.nextStopLeft}>
               <View style={styles.nextStopTagWrap}>
                 <Ionicons name="location-outline" size={12} color="#5E9DDC" />
                 <Text style={styles.nextStopTag}>NEXT STOP</Text>
               </View>
-              <Text style={styles.nextStopName}>{nextStopName}</Text>
+              <Text style={styles.nextStopName} numberOfLines={3}>
+                {nextStopName}
+              </Text>
               <Text style={styles.nextStopEta}>Estimated Arrival: 14:42 (4 mins)</Text>
             </View>
             <View style={styles.minBadge}>
@@ -218,18 +428,20 @@ export default function DriverLiveTripScreen({
           </View>
         </View>
 
-        <View style={styles.statsRow}>
-          <View style={styles.statCard}>
+        <View style={[styles.statsRow, { width: statsRowInnerWidth }]}>
+          <View style={[styles.statCard, { width: statsCardWidth }]}>
             <View style={styles.statTop}>
               <Ionicons name="people-outline" size={16} color="#5AE189" />
-              <Text style={styles.statTitle}>Occupancy</Text>
+              <Text style={styles.statTitle} numberOfLines={1}>
+                Occupancy
+              </Text>
             </View>
             <View style={styles.occupancyRow}>
               <Text style={[styles.statBig, styles.occupancyBig]}>
                 {filledOccupancy} / {totalCapacity}
               </Text>
             </View>
-            <Text style={styles.bookedSub}>
+            <Text style={styles.bookedSub} numberOfLines={3}>
               {bookedCount} booked (app)
               {walkInCountLive > 0 ? ` · ${walkInCountLive} walk-in` : ""}
               {hasSeatSummary && noShowLive > 0 ? ` · ${noShowLive} no-show (Manage Seats)` : ""}
@@ -239,14 +451,18 @@ export default function DriverLiveTripScreen({
             </View>
           </View>
 
-          <View style={styles.statCard}>
+          <View style={[styles.statCard, { width: statsCardWidth }]}>
             <View style={styles.statTop}>
               <Ionicons name="cash-outline" size={16} color="#F4C44B" />
-              <Text style={styles.statTitle}>TRIP EARNINGS</Text>
+              <Text style={styles.statTitle} numberOfLines={2}>
+                TRIP EARNINGS
+              </Text>
             </View>
-            <Text style={[styles.statBig, styles.totalValue]}>
-              LKR {tripEarningsLkr.toFixed(0)}
-            </Text>
+            <View style={styles.earningsValueWrap}>
+              <Text style={[styles.statBig, styles.totalValue]} numberOfLines={1} adjustsFontSizeToFit>
+                LKR {tripEarningsLkr.toFixed(0)}
+              </Text>
+            </View>
           </View>
         </View>
 
@@ -320,10 +536,67 @@ const styles = StyleSheet.create({
   header: { height: 52, flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 },
   backBtn: { width: 32, height: 32, alignItems: "center", justifyContent: "center" },
   routeTitle: { color: "#EAF2FB", fontSize: 20, fontWeight: "800" },
-  mapWrap: { height: 230, borderRadius: 2, overflow: "hidden", backgroundColor: "#646C76", marginBottom: 12 },
-  mapPlaceholder: { ...StyleSheet.absoluteFillObject, backgroundColor: "#6B727C" },
-  routeLineA: { position: "absolute", top: 70, left: 80, width: 170, height: 3, backgroundColor: "#F0CB4A", transform: [{ rotate: "10deg" }] },
-  routeLineB: { position: "absolute", top: 130, left: 150, width: 90, height: 3, backgroundColor: "#F0CB4A", transform: [{ rotate: "-70deg" }] },
+  mapWrap: { height: 230, borderRadius: 2, overflow: "hidden", backgroundColor: "#1B2531", marginBottom: 12 },
+  mapExpandHint: { color: "#7D95AB", fontSize: 12, fontWeight: "600", marginTop: 8, textAlign: "center" },
+  mapExpandBadge: {
+    position: "absolute",
+    left: 12,
+    bottom: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(17, 27, 40, 0.88)",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  mapExpandBadgeText: { color: "#B8D4F0", fontSize: 11, fontWeight: "700" },
+  mapExpandBadgeAboveBanner: { bottom: 52 },
+  fullscreenRoot: { flex: 1, backgroundColor: "#0A111C" },
+  fullscreenCloseBtn: {
+    position: "absolute",
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#EAF2FB",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 10,
+    elevation: 6,
+  },
+  fullscreenWebBody: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 24,
+    gap: 20,
+  },
+  fullscreenCloseBtnWide: {
+    paddingVertical: 12,
+    paddingHorizontal: 28,
+    borderRadius: 12,
+    backgroundColor: "#1E2C3D",
+  },
+  fullscreenCloseBtnText: { color: "#EAF2FB", fontSize: 16, fontWeight: "700" },
+  mapPlaceholder: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "#2A3440",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 20,
+  },
+  mapWebNote: { color: "#9EB4CB", fontSize: 14, fontWeight: "600", textAlign: "center" },
+  mapPermissionBanner: {
+    position: "absolute",
+    left: 12,
+    right: 12,
+    bottom: 12,
+    backgroundColor: "rgba(17, 27, 40, 0.92)",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  mapPermissionText: { color: "#D7E6F7", fontSize: 12, fontWeight: "600", textAlign: "center" },
   turnCard: { position: "absolute", top: 14, left: 14, backgroundColor: "#111B28", borderRadius: 14, paddingHorizontal: 12, paddingVertical: 10, flexDirection: "row", alignItems: "center", gap: 8 },
   turnIconWrap: { width: 28, height: 28, borderRadius: 14, backgroundColor: "#1E2C3D", alignItems: "center", justifyContent: "center" },
   turnLabel: { color: "#7D95AB", fontSize: 10, fontWeight: "700", letterSpacing: 0.4 },
@@ -332,14 +605,31 @@ const styles = StyleSheet.create({
   speedValue: { color: "#FFFFFF", fontSize: 20, fontWeight: "800", lineHeight: 21 },
   speedUnit: { color: "#A1B6CC", fontSize: 10, fontWeight: "600" },
   nextStopCard: { backgroundColor: "#0B3C72", borderRadius: 14, padding: 14, borderWidth: 1, borderColor: "#165A9F", marginBottom: 12 },
-  nextStopTop: { flexDirection: "row", justifyContent: "space-between" },
+  nextStopTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: 12,
+  },
+  /** Reserves space for minBadge so long stop names wrap instead of pushing the badge off-screen. */
+  nextStopLeft: { flex: 1, minWidth: 0, paddingRight: 4 },
   nextStopTagWrap: { flexDirection: "row", alignItems: "center", gap: 4 },
   nextStopTag: { color: "#5E9DDC", fontSize: 12, fontWeight: "800", letterSpacing: 0.5 },
-  nextStopName: { color: "#F5FCFF", fontSize: 40, fontWeight: "800", lineHeight: 44 },
-  nextStopEta: { color: "#BCD6F0", fontSize: 13, marginTop: 2, fontWeight: "600" },
-  minBadge: { width: 52, height: 60, borderRadius: 12, backgroundColor: "#68AFFF", alignItems: "center", justifyContent: "center" },
-  minValue: { color: "#0D2D4B", fontSize: 30, fontWeight: "800", lineHeight: 32 },
-  minText: { color: "#234C78", fontSize: 11, fontWeight: "700" },
+  nextStopName: { color: "#F5FCFF", fontSize: 40, fontWeight: "800", lineHeight: 44, flexShrink: 1 },
+  nextStopEta: { color: "#BCD6F0", fontSize: 13, marginTop: 2, fontWeight: "600", flexShrink: 1 },
+  minBadge: {
+    width: 56,
+    minWidth: 56,
+    flexShrink: 0,
+    height: 64,
+    borderRadius: 12,
+    backgroundColor: "#68AFFF",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 4,
+  },
+  minValue: { color: "#0D2D4B", fontSize: 28, fontWeight: "800", lineHeight: 30 },
+  minText: { color: "#234C78", fontSize: 11, fontWeight: "700", marginTop: 2 },
   divider: { height: 1, backgroundColor: "#1D548B", marginVertical: 10 },
   nextStopBottom: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   onScheduleRow: { flexDirection: "row", alignItems: "center", gap: 6 },
@@ -347,10 +637,30 @@ const styles = StyleSheet.create({
   avatarRow: { flexDirection: "row", alignItems: "center" },
   avatar: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: "#0B3C72", marginLeft: -6 },
   avatarMore: { color: "#E7F3FF", fontSize: 12, fontWeight: "700", marginLeft: 6 },
-  statsRow: { flexDirection: "row", gap: 10, marginBottom: 12 },
-  statCard: { flex: 1, backgroundColor: "#1A232F", borderRadius: 12, borderWidth: 1, borderColor: "#212D3A", padding: 12 },
-  statTop: { flexDirection: "row", alignItems: "center", gap: 6 },
-  statTitle: { color: "#B5C6D8", fontSize: 12, fontWeight: "700" },
+  statsRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 12,
+    alignItems: "stretch",
+    alignSelf: "center",
+  },
+  statCard: {
+    backgroundColor: "#1A232F",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#212D3A",
+    padding: 12,
+    overflow: "hidden",
+  },
+  statTop: { flexDirection: "row", alignItems: "center", gap: 6, minWidth: 0 },
+  statTitle: { color: "#B5C6D8", fontSize: 12, fontWeight: "700", flex: 1, minWidth: 0 },
+  earningsValueWrap: {
+    marginTop: 12,
+    width: "100%",
+    alignItems: "center",
+    minHeight: 44,
+    justifyContent: "center",
+  },
   occupancyRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -360,8 +670,15 @@ const styles = StyleSheet.create({
   },
   statBig: { color: "#F5FBFF", fontSize: 35, fontWeight: "800" },
   occupancyBig: { textAlign: "center", alignSelf: "stretch" },
-  bookedSub: { color: "#9EB4CB", fontSize: 12, fontWeight: "600", marginTop: 4, textAlign: "center" },
-  totalValue: { textAlign: "center", marginTop: 12 },
+  bookedSub: {
+    color: "#9EB4CB",
+    fontSize: 12,
+    fontWeight: "600",
+    marginTop: 4,
+    textAlign: "center",
+    flexShrink: 1,
+  },
+  totalValue: { textAlign: "center", maxWidth: "100%" },
   progressTrack: { height: 7, borderRadius: 4, backgroundColor: "#2A3644", marginTop: 8 },
   progressFill: { width: "72%", height: "100%", borderRadius: 4, backgroundColor: "#67A9EA" },
   queueHeader: { marginTop: 2, marginBottom: 8, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
