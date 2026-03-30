@@ -1,9 +1,13 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
 import Slider from "@react-native-community/slider";
 import { LinearGradient } from "expo-linear-gradient";
-import React, { ReactNode, useMemo, useState } from "react";
+import * as ImagePicker from "expo-image-picker";
+import React, { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  ActivityIndicator,
+  Alert,
   Image,
+  InteractionManager,
   LayoutAnimation,
   Platform,
   Pressable,
@@ -11,10 +15,17 @@ import {
   StyleSheet,
   Switch,
   Text,
+  TextInput,
   UIManager,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { updateProfile } from "firebase/auth";
+import { getAuthProfile, updateAuthProfile } from "../../services/api/auth";
+import { ApiError } from "../../services/api/client";
+import { getSession, setSession, type AppUser } from "../../services/api/session";
+import { auth } from "../../services/firebase/client";
+import { deleteProfileAvatar, uploadProfileAvatar } from "../../services/firebase/profilePhoto";
 
 if (
   Platform.OS === "android" &&
@@ -43,6 +54,7 @@ type SettingsItemProps = {
   title: string;
   subtitle?: string;
   onPress?: () => void;
+  hideChevron?: boolean;
 };
 
 type ToggleItemProps = {
@@ -60,17 +72,233 @@ type CardContainerProps = {
 
 const languages = ["English (US)", "Spanish (ES)", "French (FR)", "Hindi (IN)"];
 
+function formatMemberSince(iso?: string) {
+  if (!iso) return "—";
+  try {
+    return new Date(iso).toLocaleDateString(undefined, {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+  } catch {
+    return "—";
+  }
+}
+
+function initialsFromName(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase();
+  return `${parts[0]![0] ?? ""}${parts[parts.length - 1]![0] ?? ""}`.toUpperCase() || "?";
+}
+
 export default function ProfileAndSettingsScreen({
   onTabPress,
   onLogout,
   showBottomTabs = true,
 }: SettingsScreenProps) {
+  const [profile, setProfile] = useState<AppUser | null>(() => getSession().user);
+  const [profileLoading, setProfileLoading] = useState(true);
+  const [profileError, setProfileError] = useState<string | null>(null);
+  const [showEditProfile, setShowEditProfile] = useState(false);
+  const [editFullName, setEditFullName] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [photoUploading, setPhotoUploading] = useState(false);
+  const phoneInputRef = useRef<TextInput>(null);
+
   const [highContrast, setHighContrast] = useState(false);
   const [voiceAssistant, setVoiceAssistant] = useState(true);
   const [screenReader, setScreenReader] = useState(false);
   const [fontSize, setFontSize] = useState(0.45);
   const [showLanguages, setShowLanguages] = useState(true);
   const [selectedLanguage, setSelectedLanguage] = useState(languages[0]);
+
+  const applyProfile = useCallback((next: AppUser) => {
+    setProfile(next);
+    setEditFullName(next.fullName ?? "");
+    setEditPhone(typeof next.phone === "string" ? next.phone : "");
+    const cur = getSession();
+    setSession({
+      accessToken: cur.accessToken,
+      refreshToken: cur.refreshToken,
+      user: next,
+    });
+  }, []);
+
+  const loadProfile = useCallback(async () => {
+    setProfileLoading(true);
+    setProfileError(null);
+    try {
+      const next = await getAuthProfile();
+      applyProfile(next);
+    } catch (e) {
+      setProfileError(e instanceof ApiError ? e.message : "Could not load profile.");
+      const fallback = getSession().user;
+      if (fallback) applyProfile(fallback);
+      else setProfile(null);
+    } finally {
+      setProfileLoading(false);
+    }
+  }, [applyProfile]);
+
+  useEffect(() => {
+    void loadProfile();
+  }, [loadProfile]);
+
+  const saveAccount = useCallback(async () => {
+    const fullName = editFullName.trim();
+    if (fullName.length < 2) {
+      Alert.alert("Check name", "Please enter your full name (at least 2 characters).");
+      return;
+    }
+    const phoneTrimmed = editPhone.trim();
+    setSaving(true);
+    try {
+      const next = await updateAuthProfile({
+        fullName,
+        phone: phoneTrimmed === "" ? null : phoneTrimmed,
+      });
+      applyProfile(next);
+      if (auth.currentUser) {
+        await updateProfile(auth.currentUser, { displayName: fullName });
+      }
+      Alert.alert(
+        "Saved",
+        phoneTrimmed
+          ? "Your name and phone number were saved to your account."
+          : "Your profile was updated. Phone number removed from your account."
+      );
+      setShowEditProfile(false);
+    } catch (e) {
+      Alert.alert(
+        "Could not save",
+        e instanceof ApiError ? e.message : "Something went wrong. Try again."
+      );
+    } finally {
+      setSaving(false);
+    }
+  }, [applyProfile, editFullName, editPhone]);
+
+  const openPhoneEditor = useCallback(() => {
+    if (!profile) {
+      Alert.alert("Sign in", "Sign in to add or change your phone number.");
+      return;
+    }
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setShowEditProfile(true);
+    InteractionManager.runAfterInteractions(() => {
+      setTimeout(() => phoneInputRef.current?.focus(), 120);
+    });
+  }, [profile]);
+
+  const uploadPickedImage = useCallback(
+    async (uid: string, localUri: string) => {
+      setPhotoUploading(true);
+      try {
+        const url = await uploadProfileAvatar(uid, localUri);
+        const next = await updateAuthProfile({ photoUrl: url });
+        applyProfile(next);
+        Alert.alert("Saved", "Your picture was updated.");
+      } catch (e) {
+        Alert.alert(
+          "Could not update photo",
+          e instanceof ApiError
+            ? e.message
+            : e instanceof Error
+              ? e.message
+              : "Could not upload your picture. Try again."
+        );
+      } finally {
+        setPhotoUploading(false);
+      }
+    },
+    [applyProfile]
+  );
+
+  const removePhoto = useCallback(
+    async (uid: string) => {
+      setPhotoUploading(true);
+      try {
+        await deleteProfileAvatar(uid);
+        const next = await updateAuthProfile({ photoUrl: null });
+        applyProfile(next);
+        Alert.alert("Saved", "Your picture was removed.");
+      } catch (e) {
+        Alert.alert(
+          "Could not remove photo",
+          e instanceof ApiError ? e.message : "Something went wrong. Try again."
+        );
+      } finally {
+        setPhotoUploading(false);
+      }
+    },
+    [applyProfile]
+  );
+
+  const pickFromLibrary = useCallback(
+    async (uid: string) => {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Permission needed", "Allow photo library access to choose a profile picture.");
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.85,
+      });
+      if (result.canceled || !result.assets[0]?.uri) return;
+      await uploadPickedImage(uid, result.assets[0].uri);
+    },
+    [uploadPickedImage]
+  );
+
+  const pickFromCamera = useCallback(
+    async (uid: string) => {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Permission needed", "Allow camera access to take a profile picture.");
+        return;
+      }
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.85,
+      });
+      if (result.canceled || !result.assets[0]?.uri) return;
+      await uploadPickedImage(uid, result.assets[0].uri);
+    },
+    [uploadPickedImage]
+  );
+
+  const openPhotoOptions = useCallback(() => {
+    const uid = auth.currentUser?.uid;
+    if (!uid) {
+      Alert.alert("Sign in required", "Sign in to change your profile photo.");
+      return;
+    }
+    const hasPhoto = Boolean(profile?.photoUrl?.trim());
+    Alert.alert("Profile photo", "Choose an option", [
+      { text: "Photo library", onPress: () => void pickFromLibrary(uid) },
+      { text: "Camera", onPress: () => void pickFromCamera(uid) },
+      ...(hasPhoto
+        ? ([
+            {
+              text: "Remove photo",
+              style: "destructive" as const,
+              onPress: () => void removePhoto(uid),
+            },
+          ] as const)
+        : []),
+      { text: "Cancel", style: "cancel" },
+    ]);
+  }, [pickFromCamera, pickFromLibrary, profile?.photoUrl, removePhoto]);
+
+  const displayName = profile?.fullName?.trim() || "Passenger";
+  const displayEmail = profile?.email?.trim() || "—";
+  const photoUri = profile?.photoUrl?.trim() || "";
 
   const languageRows = useMemo(
     () =>
@@ -124,40 +352,135 @@ export default function ProfileAndSettingsScreen({
           <Text style={styles.headerTitle}>Account Settings</Text>
 
           <View style={styles.profileSection}>
-            <View style={styles.avatarWrap}>
-              <Image
-                source={{ uri: "https://i.pravatar.cc/300?img=11" }}
-                style={styles.avatar}
-                resizeMode="cover"
-              />
-              <Pressable style={styles.editBadge}>
-                <Feather name="edit-2" color="#FFFFFF" size={12} />
-              </Pressable>
-            </View>
-            <Text style={styles.name}>Alex Rivera</Text>
-            <Text style={styles.email}>alex.rivera@transitflow.com</Text>
-            <Pressable
-              style={({ pressed }) => [
-                styles.editButton,
-                pressed && styles.pressed,
-              ]}
-            >
-              <Text style={styles.editButtonText}>Edit Profile Info</Text>
-            </Pressable>
+            {profileLoading ? (
+              <ActivityIndicator color="#7EB4F0" style={{ marginVertical: 24 }} />
+            ) : (
+              <>
+                <View style={styles.avatarWrap}>
+                  {photoUri ? (
+                    <Image source={{ uri: photoUri }} style={styles.avatar} resizeMode="cover" />
+                  ) : (
+                    <View style={[styles.avatar, styles.avatarPlaceholder]}>
+                      <Text style={styles.avatarInitials}>{initialsFromName(displayName)}</Text>
+                    </View>
+                  )}
+                  <Pressable
+                    style={styles.editBadge}
+                    onPress={openPhotoOptions}
+                    disabled={photoUploading || !profile}
+                  >
+                    {photoUploading ? (
+                      <ActivityIndicator color="#FFFFFF" size="small" />
+                    ) : (
+                      <Feather name="edit-2" color="#FFFFFF" size={12} />
+                    )}
+                  </Pressable>
+                </View>
+                <Text style={styles.name}>{profile ? displayName : "Not signed in"}</Text>
+                <Text style={styles.email}>{profile ? displayEmail : "Sign in to sync your account from Firebase."}</Text>
+                {profileError ? (
+                  <Pressable onPress={() => void loadProfile()} style={styles.profileErrorBanner}>
+                    <Text style={styles.profileErrorText}>{profileError} · Tap to retry</Text>
+                  </Pressable>
+                ) : null}
+                {profile ? (
+                  <>
+                    <Pressable
+                      style={({ pressed }) => [styles.editButton, pressed && styles.pressed]}
+                      onPress={() => {
+                        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                        setShowEditProfile((v) => !v);
+                      }}
+                    >
+                      <Text style={styles.editButtonText}>
+                        {showEditProfile ? "Close editor" : "Edit profile info"}
+                      </Text>
+                    </Pressable>
+                    {showEditProfile ? (
+                      <View style={styles.editForm}>
+                        <Text style={styles.editLabel}>Full name</Text>
+                        <TextInput
+                          value={editFullName}
+                          onChangeText={setEditFullName}
+                          placeholder="Your name"
+                          placeholderTextColor="#6B7C92"
+                          style={styles.editInput}
+                          autoCapitalize="words"
+                        />
+                        <Text style={styles.editLabel}>Phone number</Text>
+                        <TextInput
+                          ref={phoneInputRef}
+                          value={editPhone}
+                          onChangeText={setEditPhone}
+                          placeholder="e.g. +94 77 123 4567"
+                          placeholderTextColor="#6B7C92"
+                          style={styles.editInput}
+                          keyboardType="phone-pad"
+                          textContentType="telephoneNumber"
+                          autoComplete="tel"
+                        />
+                        <Pressable
+                          style={({ pressed }) => [styles.saveProfileBtn, pressed && styles.pressed]}
+                          onPress={() => void saveAccount()}
+                          disabled={saving}
+                        >
+                          {saving ? (
+                            <ActivityIndicator color="#041120" />
+                          ) : (
+                            <Text style={styles.saveProfileBtnText}>Save</Text>
+                          )}
+                        </Pressable>
+                      </View>
+                    ) : null}
+                  </>
+                ) : null}
+              </>
+            )}
           </View>
 
-          <SettingsSection title="SECURITY & AUTHENTICATION">
+          <SettingsSection title="ACCOUNT">
             <CardContainer gradient>
               <SettingsItem
-                icon="lock-closed-outline"
-                title="Change Password"
-                subtitle="Last updated 3 months ago"
+                icon="mail-outline"
+                title="Email"
+                subtitle={profile?.email?.trim() || "—"}
+                hideChevron
               />
               <View style={styles.cardDivider} />
               <SettingsItem
-                icon="phone-portrait-outline"
-                title="Two-Factor Auth"
-                subtitle="Enabled via SMS"
+                icon="call-outline"
+                title="Phone number"
+                subtitle={
+                  profile?.phone?.trim()
+                    ? `${profile.phone.trim()} · Tap to change`
+                    : profile
+                      ? "Tap to add your mobile number"
+                      : "—"
+                }
+                onPress={profile ? openPhoneEditor : undefined}
+                hideChevron={!profile}
+              />
+              <View style={styles.cardDivider} />
+              <SettingsItem
+                icon="person-badge-outline"
+                title="Role"
+                subtitle={
+                  profile?.role === "DRIVER"
+                    ? "Driver"
+                    : profile?.role === "ADMIN"
+                      ? "Admin"
+                      : profile
+                        ? "Passenger"
+                        : "—"
+                }
+                hideChevron
+              />
+              <View style={styles.cardDivider} />
+              <SettingsItem
+                icon="calendar-outline"
+                title="Member since"
+                subtitle={formatMemberSince(profile?.createdAt)}
+                hideChevron
               />
             </CardContainer>
           </SettingsSection>
@@ -271,14 +594,17 @@ export default function ProfileAndSettingsScreen({
           </View>
 
           <Pressable
-            style={({ pressed }) => [
-              styles.logoutButton,
-              pressed && styles.pressed,
-            ]}
-            onPress={onLogout}
+            style={styles.logoutBtn}
+            onPress={() => {
+              if (onLogout) {
+                onLogout();
+                return;
+              }
+              Alert.alert("Logout", "Use your app’s sign-out flow from the main login experience.");
+            }}
           >
-            <Ionicons name="log-out-outline" size={16} color="#FF6F6F" />
-            <Text style={styles.logoutText}>Logout from TransitFlow</Text>
+            <Ionicons name="log-out-outline" size={18} color="#F2A9B8" />
+            <Text style={styles.logoutText}>Logout</Text>
           </Pressable>
         </ScrollView>
 
@@ -330,11 +656,12 @@ function SettingsSection({ title, children }: SettingsSectionProps) {
   );
 }
 
-function SettingsItem({ icon, title, subtitle, onPress }: SettingsItemProps) {
+function SettingsItem({ icon, title, subtitle, onPress, hideChevron }: SettingsItemProps) {
   return (
     <Pressable
-      style={({ pressed }) => [styles.settingsItem, pressed && styles.pressed]}
+      style={({ pressed }) => [styles.settingsItem, pressed && onPress && styles.pressed]}
       onPress={onPress}
+      disabled={!onPress}
     >
       <View style={styles.itemIconWrap}>
         <Ionicons name={icon} size={16} color="#AFD2FF" />
@@ -343,7 +670,7 @@ function SettingsItem({ icon, title, subtitle, onPress }: SettingsItemProps) {
         <Text style={styles.itemTitle}>{title}</Text>
         {subtitle ? <Text style={styles.itemSubtitle}>{subtitle}</Text> : null}
       </View>
-      <Ionicons name="chevron-forward" size={18} color="#B9D7FF" />
+      {!hideChevron ? <Ionicons name="chevron-forward" size={18} color="#B9D7FF" /> : <View style={{ width: 18 }} />}
     </Pressable>
   );
 }
@@ -429,6 +756,47 @@ const styles = StyleSheet.create({
   profileSection: { alignItems: "center", marginBottom: 20 },
   avatarWrap: { width: 84, height: 84, marginBottom: 10 },
   avatar: { width: 84, height: 84, borderRadius: 42 },
+  avatarPlaceholder: {
+    backgroundColor: "#1E3A5F",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarInitials: { color: "#EAF4FF", fontSize: 28, fontWeight: "800" },
+  profileErrorBanner: {
+    marginBottom: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    backgroundColor: "#2A1518",
+    borderWidth: 1,
+    borderColor: "#5C2A32",
+  },
+  profileErrorText: { color: "#FCA5A5", fontSize: 12, textAlign: "center" },
+  editForm: {
+    marginTop: 14,
+    width: "100%",
+    maxWidth: 360,
+    alignSelf: "center",
+  },
+  editLabel: { color: "#9EB4CB", fontSize: 11, fontWeight: "700", marginBottom: 6, marginTop: 8 },
+  editInput: {
+    borderWidth: 1,
+    borderColor: "#2B3D55",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    color: "#F2F8FF",
+    fontSize: 15,
+    backgroundColor: "#0D1A2A",
+  },
+  saveProfileBtn: {
+    marginTop: 16,
+    backgroundColor: "#60A5FA",
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  saveProfileBtnText: { color: "#041120", fontSize: 15, fontWeight: "800" },
   editBadge: {
     position: "absolute",
     right: 0,
@@ -586,14 +954,19 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   infoText: { color: "#A9BDD4", fontSize: 12, lineHeight: 17, flex: 1 },
-  logoutButton: {
+  logoutBtn: {
+    height: 48,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#5A2A37",
+    backgroundColor: "#171F2B",
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     gap: 8,
-    marginBottom: 12,
-    paddingVertical: 6,
+    marginTop: 6,
   },
-  logoutText: { color: "#FF6F6F", fontSize: 14, fontWeight: "700" },
+  logoutText: { color: "#F2A9B8", fontSize: 15, fontWeight: "800" },
   tabBar: {
     height: 68,
     borderTopWidth: 1,

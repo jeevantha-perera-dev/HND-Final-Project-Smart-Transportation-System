@@ -239,7 +239,15 @@ export default function QRTicketScreen({ navigation, route }: Props) {
             </View>
           ) : null}
 
-          <PrimaryButton title="Track Bus Live" onPress={() => navigation.navigate("LiveTracking")} />
+          <PrimaryButton
+            title="Track Bus Live"
+            onPress={() =>
+              navigation.navigate("LiveTracking", {
+                tripId: booking?.tripId || undefined,
+                routeTitle: trip?.routeName || undefined,
+              })
+            }
+          />
         </ScrollView>
         <PassengerBottomNav active="Trips" />
       </LinearGradient>

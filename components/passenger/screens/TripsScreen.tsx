@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -24,6 +24,8 @@ type TripsTab = (typeof tabs)[number];
 
 type UpcomingRow = {
   key: string;
+  tripId: string;
+  routeTitle: string;
   route: string;
   status: "Live Now" | "Upcoming" | "In Progress";
   from: string;
@@ -87,6 +89,12 @@ function formatSeat(seatId: string | undefined): string {
   return s.toLowerCase().includes("seat") ? s : `Seat ${s}`;
 }
 
+/** Trip is still a bookable / in-service run (not finished, not cancelled). */
+function isActiveScheduledTripStatus(tripStatus: string): boolean {
+  const s = tripStatus.toLowerCase();
+  return s === "scheduled" || s === "in_progress" || s === "active" || s === "boarding" || s === "live";
+}
+
 function cardStatusForTrip(trip: MyBookingItem["trip"], departureIso: string | undefined): UpcomingRow["status"] {
   const st = String(trip?.status ?? "").toLowerCase();
   if (st === "scheduled" && departureIso) {
@@ -105,19 +113,21 @@ function splitBookings(items: MyBookingItem[]): { upcoming: UpcomingRow[]; compl
 
   for (const item of items) {
     const trip = item.trip ?? item.tripSnapshot ?? null;
-    const tripStatusRaw = String(trip?.status ?? "").toLowerCase().trim();
+    if (!trip) continue;
+
+    const tripStatusRaw = String(trip.status ?? "").toLowerCase().trim();
     const tripStatus = tripStatusRaw === "complete" ? "completed" : tripStatusRaw;
 
     if (tripStatus === "cancelled") continue;
 
-    const route = String(trip?.routeCode ?? trip?.routeId ?? "—");
-    const from = String(trip?.originStopName ?? "—");
-    const to = String(trip?.destinationStopName ?? trip?.routeName ?? "—");
-    const bus = String(trip?.vehicleCode ?? trip?.vehicleId ?? "—");
+    const route = String(trip.routeCode ?? trip.routeId ?? "—");
+    const from = String(trip.originStopName ?? "—");
+    const to = String(trip.destinationStopName ?? trip.routeName ?? "—");
+    const bus = String(trip.vehicleCode ?? trip.vehicleId ?? "—");
     const seat = formatSeat(item.seatId);
 
     if (tripStatus === "completed") {
-      const whenIso = trip?.completedAt ?? trip?.arrivalAt ?? trip?.departureAt ?? item.updatedAt ?? item.createdAt;
+      const whenIso = trip.completedAt ?? trip.arrivalAt ?? trip.departureAt ?? item.updatedAt ?? item.createdAt;
       const { date, time, slot, dayLabel } = formatFromIso(whenIso);
       completed.push({
         key: item.id,
@@ -134,12 +144,20 @@ function splitBookings(items: MyBookingItem[]): { upcoming: UpcomingRow[]; compl
       continue;
     }
 
-    const whenIso = trip?.departureAt ?? item.createdAt;
+    /** Upcoming tab: confirmed seats only, on trips that are still scheduled / in progress (not completed/cancelled). */
+    const bookingConfirmed = item.status === "CONFIRMED";
+    if (!bookingConfirmed || !isActiveScheduledTripStatus(tripStatus)) {
+      continue;
+    }
+
+    const whenIso = trip.departureAt ?? item.createdAt;
     const { date, time, slot, dayLabel } = formatFromIso(whenIso);
     upcoming.push({
       key: item.id,
+      tripId: String(item.tripId ?? ""),
+      routeTitle: String(trip.routeName ?? `${route} · ${to}`),
       route,
-      status: cardStatusForTrip(trip, trip?.departureAt),
+      status: cardStatusForTrip(trip, trip.departureAt),
       from,
       to,
       date,
@@ -171,6 +189,35 @@ export default function TripsScreen({ navigation }: Props) {
   const [modalVisible, setModalVisible] = useState(false);
   const [draftFilters, setDraftFilters] = useState<TripFilters>(defaultFilters);
   const [appliedFilters, setAppliedFilters] = useState<TripFilters>(defaultFilters);
+
+  /** Route codes present in the active tab (from real trip data). */
+  const filterRouteCodes = useMemo(() => {
+    const rows = activeTab === "Upcoming" ? upcomingTrips : completedTrips;
+    return [...new Set(rows.map((r) => r.route).filter((code) => code && code !== "—"))];
+  }, [activeTab, upcomingTrips, completedTrips]);
+
+  useEffect(() => {
+    setAppliedFilters((prev) => ({ ...prev, busStatus: "All" }));
+    setDraftFilters((prev) => ({ ...prev, busStatus: "All" }));
+  }, [activeTab]);
+
+  useEffect(() => {
+    setAppliedFilters((prev) => {
+      if (prev.route !== "All" && !filterRouteCodes.includes(prev.route)) {
+        return { ...prev, route: "All" };
+      }
+      return prev;
+    });
+  }, [activeTab, filterRouteCodes]);
+
+  const openFilters = useCallback(() => {
+    const next = { ...appliedFilters };
+    if (next.route !== "All" && !filterRouteCodes.includes(next.route)) {
+      next.route = "All";
+    }
+    setDraftFilters(next);
+    setModalVisible(true);
+  }, [appliedFilters, filterRouteCodes]);
 
   const loadBookings = useCallback(async (mode: "full" | "refresh" = "full") => {
     if (mode === "full") {
@@ -205,7 +252,12 @@ export default function TripsScreen({ navigation }: Props) {
   };
 
   const goToLiveTracking = () => {
-    navigation.navigate("LiveTracking");
+    const first = filteredUpcomingTrips[0];
+    if (first?.tripId) {
+      navigation.navigate("LiveTracking", { tripId: first.tripId, routeTitle: first.routeTitle });
+    } else {
+      navigation.navigate("LiveTracking", { tripId: "trip-demo-402", routeTitle: "Demo express" });
+    }
   };
 
   const getTimeLabel = (slot: "morning" | "afternoon") => (slot === "morning" ? "Morning" : "Afternoon");
@@ -220,13 +272,7 @@ export default function TripsScreen({ navigation }: Props) {
     if (appliedFilters.date !== "All" && trip.dayLabel !== appliedFilters.date) {
       return false;
     }
-    if (
-      appliedFilters.busStatus !== "All" &&
-      !(
-        (appliedFilters.busStatus === "Completed" && trip.isCompleted) ||
-        appliedFilters.busStatus === trip.status
-      )
-    ) {
+    if (!trip.isCompleted && appliedFilters.busStatus !== "All" && appliedFilters.busStatus !== trip.status) {
       return false;
     }
     if (appliedFilters.route !== "All" && trip.route !== appliedFilters.route) {
@@ -244,7 +290,9 @@ export default function TripsScreen({ navigation }: Props) {
 
   const activeFilterChips = [
     appliedFilters.date !== "All" ? { key: "date", label: `Date: ${appliedFilters.date}` } : null,
-    appliedFilters.busStatus !== "All" ? { key: "busStatus", label: `Status: ${appliedFilters.busStatus}` } : null,
+    activeTab === "Upcoming" && appliedFilters.busStatus !== "All"
+      ? { key: "busStatus" as const, label: `Status: ${appliedFilters.busStatus}` }
+      : null,
     appliedFilters.route !== "All" ? { key: "route", label: `Route: ${appliedFilters.route}` } : null,
     appliedFilters.timeRange !== "All" ? { key: "timeRange", label: `Time: ${appliedFilters.timeRange}` } : null,
   ].filter(Boolean) as { key: keyof TripFilters; label: string }[];
@@ -266,7 +314,15 @@ export default function TripsScreen({ navigation }: Props) {
         >
           <View style={styles.headerRow}>
             <Text style={styles.title}>My Trips</Text>
-            <Ionicons name="funnel-outline" size={18} color="#BBD1EB" />
+            <Pressable
+              onPress={openFilters}
+              hitSlop={12}
+              style={({ pressed }) => [styles.filterIconBtn, pressed && styles.filterIconBtnPressed]}
+              accessibilityRole="button"
+              accessibilityLabel="Open trip filters"
+            >
+              <Ionicons name="funnel-outline" size={20} color="#BBD1EB" />
+            </Pressable>
           </View>
 
           <TabSwitcher
@@ -296,14 +352,7 @@ export default function TripsScreen({ navigation }: Props) {
 
           {activeTab === "Upcoming" ? (
             <>
-              <SectionHeader
-                title="SCHEDULED JOURNEYS"
-                actionText="Filter"
-                onActionPress={() => {
-                  setDraftFilters(appliedFilters);
-                  setModalVisible(true);
-                }}
-              />
+              <SectionHeader title="SCHEDULED JOURNEYS" />
               {!loading && filteredUpcomingTrips.length === 0 ? (
                 <Text style={styles.emptyText}>No upcoming trips. Book a journey from Home to see it here.</Text>
               ) : null}
@@ -321,28 +370,6 @@ export default function TripsScreen({ navigation }: Props) {
                   onViewQr={() => goToQr(trip.key)}
                 />
               ))}
-              {!loading && filteredCompletedTrips.length > 0 ? (
-                <>
-                  <SectionHeader
-                    title="RECENTLY COMPLETED"
-                    actionText="See all"
-                    onActionPress={() => setActiveTab("Completed")}
-                  />
-                  {filteredCompletedTrips.slice(0, 3).map((trip) => (
-                    <CompletedTripCard
-                      key={`recent-${trip.key}`}
-                      route={trip.route}
-                      from={trip.from}
-                      to={trip.to}
-                      date={trip.date}
-                      time={trip.time}
-                      seat={trip.seat}
-                      bus={trip.bus}
-                      onRate={() => navigation.navigate("RateTrip")}
-                    />
-                  ))}
-                </>
-              ) : null}
               <ScreenCard>
                 <Pressable
                   style={({ pressed }) => [styles.liveTrackingRow, pressed && styles.pressed]}
@@ -363,14 +390,7 @@ export default function TripsScreen({ navigation }: Props) {
             </>
           ) : (
             <>
-              <SectionHeader
-                title="PAST JOURNEYS"
-                actionText="Filter"
-                onActionPress={() => {
-                  setDraftFilters(appliedFilters);
-                  setModalVisible(true);
-                }}
-              />
+              <SectionHeader title="PAST JOURNEYS" />
               {!loading && filteredCompletedTrips.length === 0 ? (
                 <Text style={styles.emptyText}>No completed trips yet.</Text>
               ) : null}
@@ -393,6 +413,8 @@ export default function TripsScreen({ navigation }: Props) {
       </LinearGradient>
       <FilterModal
         visible={modalVisible}
+        filterMode={activeTab === "Upcoming" ? "upcoming" : "completed"}
+        routeCodes={filterRouteCodes}
         draftFilters={draftFilters}
         onChange={setDraftFilters}
         onClose={() => setModalVisible(false)}
@@ -416,6 +438,17 @@ const styles = StyleSheet.create({
   content: { padding: spacing.page, paddingBottom: 24 },
   headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 14 },
   title: { color: colors.textPrimary, fontSize: 28, fontWeight: "800" },
+  filterIconBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(30, 52, 78, 0.55)",
+    borderWidth: 1,
+    borderColor: "rgba(120, 160, 210, 0.35)",
+  },
+  filterIconBtnPressed: { opacity: 0.85 },
   errorBanner: {
     color: "#FFB4B4",
     fontSize: 13,

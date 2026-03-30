@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import {
   Modal,
   Pressable,
@@ -12,13 +12,22 @@ import FilterChip from "./FilterChip";
 
 export type TripFilters = {
   date: "All" | "Today" | "Tomorrow" | "Custom";
-  busStatus: "All" | "Live Now" | "Upcoming" | "Completed";
-  route: "All" | "R-104" | "R-202" | "R-304" | "R-203";
-  timeRange: "All" | "Morning" | "Afternoon" | "Evening";
+  /** Shown only for Upcoming tab; matches TripCard status. */
+  busStatus: "All" | "Live Now" | "Upcoming" | "In Progress";
+  /** "All" or a route code from your bookings (e.g. 138, 154). */
+  route: string;
+  /** Matches departure slot (morning / afternoon). */
+  timeRange: "All" | "Morning" | "Afternoon";
 };
+
+export type TripFilterModalMode = "upcoming" | "completed";
 
 type FilterModalProps = {
   visible: boolean;
+  /** Which tab is active — controls which sections appear. */
+  filterMode: TripFilterModalMode;
+  /** Distinct route codes from the current tab’s trips (e.g. from Firestore). */
+  routeCodes: string[];
   draftFilters: TripFilters;
   onChange: (next: TripFilters) => void;
   onClose: () => void;
@@ -27,43 +36,44 @@ type FilterModalProps = {
 };
 
 const dateOptions: TripFilters["date"][] = ["All", "Today", "Tomorrow", "Custom"];
-const statusOptions: TripFilters["busStatus"][] = [
+const upcomingStatusOptions: TripFilters["busStatus"][] = [
   "All",
   "Live Now",
   "Upcoming",
-  "Completed",
+  "In Progress",
 ];
-const routeOptions: TripFilters["route"][] = [
-  "All",
-  "R-104",
-  "R-202",
-  "R-304",
-  "R-203",
-];
-const timeOptions: TripFilters["timeRange"][] = [
-  "All",
-  "Morning",
-  "Afternoon",
-  "Evening",
-];
+const timeOptions: TripFilters["timeRange"][] = ["All", "Morning", "Afternoon"];
 
 export default function FilterModal({
   visible,
+  filterMode,
+  routeCodes,
   draftFilters,
   onChange,
   onClose,
   onApply,
   onReset,
 }: FilterModalProps) {
+  const sortedRoutes = useMemo(
+    () => [...new Set(routeCodes.map((r) => String(r).trim()).filter(Boolean))].sort(),
+    [routeCodes]
+  );
+
+  const subtitle =
+    filterMode === "upcoming" ? "Scheduled & live journeys" : "Past journeys";
+
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose} />
       <View style={styles.sheet}>
         <View style={styles.handle} />
         <View style={styles.headerRow}>
-          <Text style={styles.title}>Filter Trips</Text>
-          <Pressable onPress={onClose}>
-            <Ionicons name="close" size={20} color="#C9DBF0" />
+          <View>
+            <Text style={styles.title}>Filter trips</Text>
+            <Text style={styles.subtitle}>{subtitle}</Text>
+          </View>
+          <Pressable onPress={onClose} hitSlop={10}>
+            <Ionicons name="close" size={22} color="#C9DBF0" />
           </Pressable>
         </View>
 
@@ -71,7 +81,7 @@ export default function FilterModal({
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
         >
-          <FilterSection title="Date">
+          <FilterSection title="Travel date">
             {dateOptions.map((opt) => (
               <FilterChip
                 key={opt}
@@ -82,29 +92,36 @@ export default function FilterModal({
             ))}
           </FilterSection>
 
-          <FilterSection title="Bus Status">
-            {statusOptions.map((opt) => (
-              <FilterChip
-                key={opt}
-                label={opt}
-                active={draftFilters.busStatus === opt}
-                onPress={() => onChange({ ...draftFilters, busStatus: opt })}
-              />
-            ))}
-          </FilterSection>
+          {filterMode === "upcoming" ? (
+            <FilterSection title="Trip status">
+              {upcomingStatusOptions.map((opt) => (
+                <FilterChip
+                  key={opt}
+                  label={opt}
+                  active={draftFilters.busStatus === opt}
+                  onPress={() => onChange({ ...draftFilters, busStatus: opt })}
+                />
+              ))}
+            </FilterSection>
+          ) : null}
 
           <FilterSection title="Route">
-            {routeOptions.map((opt) => (
+            <FilterChip
+              label="All routes"
+              active={draftFilters.route === "All"}
+              onPress={() => onChange({ ...draftFilters, route: "All" })}
+            />
+            {sortedRoutes.map((code) => (
               <FilterChip
-                key={opt}
-                label={opt}
-                active={draftFilters.route === opt}
-                onPress={() => onChange({ ...draftFilters, route: opt })}
+                key={code}
+                label={`Route ${code}`}
+                active={draftFilters.route === code}
+                onPress={() => onChange({ ...draftFilters, route: code })}
               />
             ))}
           </FilterSection>
 
-          <FilterSection title="Time Range">
+          <FilterSection title="Departure time">
             {timeOptions.map((opt) => (
               <FilterChip
                 key={opt}
@@ -121,7 +138,7 @@ export default function FilterModal({
             <Text style={styles.resetText}>Reset</Text>
           </Pressable>
           <Pressable style={styles.applyBtn} onPress={onApply}>
-            <Text style={styles.applyText}>Apply Filters</Text>
+            <Text style={styles.applyText}>Apply filters</Text>
           </Pressable>
         </View>
       </View>
@@ -168,9 +185,11 @@ const styles = StyleSheet.create({
   headerRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: "flex-start",
+    gap: 12,
   },
   title: { color: "#ECF5FF", fontSize: 19, fontWeight: "800" },
+  subtitle: { color: "#8FA4BC", fontSize: 12, fontWeight: "600", marginTop: 4 },
   content: { paddingTop: 8, paddingBottom: 10, gap: 14 },
   section: { gap: 8 },
   sectionTitle: { color: "#BFD2E7", fontSize: 13, fontWeight: "700" },

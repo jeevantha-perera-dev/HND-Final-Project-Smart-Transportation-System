@@ -75,8 +75,20 @@ export async function getTripDetail(tripId: string) {
   return apiRequest<TripDetail>(`/trips/${encodeURIComponent(tripId)}`);
 }
 
+export type TripTrackingLatest = {
+  latitude?: number;
+  longitude?: number;
+  nextStopName?: string;
+  etaMinutes?: number;
+  seatsAvailable?: number;
+  capturedAt?: string;
+  vehicleId?: string;
+  speedKph?: number | null;
+  heading?: number | null;
+} | null;
+
 export async function getTripTracking(tripId: string) {
-  return apiRequest<{ tripId: string; latest: any }>(`/trips/${tripId}/tracking`);
+  return apiRequest<{ tripId: string; latest: TripTrackingLatest }>(`/trips/${encodeURIComponent(tripId)}/tracking`);
 }
 
 export type ScheduleTripInput = {

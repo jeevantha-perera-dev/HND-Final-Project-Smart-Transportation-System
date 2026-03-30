@@ -56,7 +56,7 @@ export type PassengerRootStackParamList = {
   MainTabs: NavigatorScreenParams<PassengerTabsParamList> | undefined;
   QRTicket: { bookingId?: string } | undefined;
   RateTrip: undefined;
-  LiveTracking: undefined;
+  LiveTracking: { tripId?: string; routeTitle?: string } | undefined;
   CalendarPicker: { selectedDate?: string } | undefined;
   RouteOptions: undefined;
   EmergencySOS: undefined;

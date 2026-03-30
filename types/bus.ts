@@ -44,6 +44,8 @@ export type BusResult = {
   /** Simulated or tracked “arriving in” time (minutes); ~60–90% of journey without live progress. */
   arrivingInMinutes: number;
   seatsAvailable: number;
+  /** Modelled seats left when the bus reaches the passenger’s stop (from trip search / API). */
+  predictedSeatsWhenArrived: number;
   crowdLevel: CrowdLevel;
   departureLabel: string;
   isExpress: boolean;

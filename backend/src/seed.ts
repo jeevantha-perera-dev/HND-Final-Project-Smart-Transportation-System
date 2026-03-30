@@ -6,6 +6,7 @@
  * 2. npm run seed:trips  — optional pool trips for passengers
  * 3. npm run seed:users  — this script (same as npm run seed:driver-demo)
  */
+import { Timestamp } from "firebase-admin/firestore";
 import { collections } from "./db/collections";
 import { firebaseAuthAdmin, firestore } from "./db/firestore";
 
@@ -40,6 +41,51 @@ const DEMO_PASSENGERS: DemoPassengerSeed[] = [
   { email: "p_demo_20@smartbus.local", fullName: "Gayan Herath" },
   { email: "p_demo_21@smartbus.local", fullName: "Imasha Rajapakse" },
 ];
+
+async function seedPassengerAnnouncements() {
+  const col = firestore.collection(collections.passengerAnnouncements);
+  const now = Date.now();
+  const rows = [
+    {
+      id: "ann_delay_galle_rd",
+      title: "Route 138 — heavier traffic Galle Road",
+      body: "Expect 10–15 minute delays southbound near Bambalapitiya during evening peak. Plan extra time.",
+      category: "Delays",
+      important: true,
+      createdAt: Timestamp.fromMillis(now - 3 * 60 * 1000),
+    },
+    {
+      id: "ann_route_express",
+      title: "Express option: Kandy line",
+      body: "Morning express departures from Colombo Fort are on revised timings today. Check the app before you travel.",
+      category: "Route Changes",
+      important: true,
+      createdAt: Timestamp.fromMillis(now - 52 * 60 * 1000),
+    },
+    {
+      id: "ann_security_advisory",
+      title: "Safety reminder — Pettah terminus",
+      body: "Keep belongings close in crowded areas. Report unattended items to station staff.",
+      category: "Security",
+      important: false,
+      createdAt: Timestamp.fromMillis(now - 2 * 60 * 60 * 1000),
+    },
+    {
+      id: "ann_maintenance_weekend",
+      title: "Weekend maintenance — payments",
+      body: "Short maintenance window Saturday 2–4 AM. If top-up fails, retry after 4 AM.",
+      category: "Route Changes",
+      important: false,
+      createdAt: Timestamp.fromMillis(now - 5 * 60 * 60 * 1000),
+    },
+  ];
+
+  for (const row of rows) {
+    const { id, ...data } = row;
+    await col.doc(id).set(data, { merge: true });
+  }
+  console.log(`Seeded ${rows.length} passenger announcements (notifications tab).`);
+}
 
 type SeedDriverDemoArgs = {
   driverId: string;
@@ -533,6 +579,21 @@ async function seedDriverDemoTripsAndBookings({ driverId, passengerUids, nowIso 
       updatedAt: nowIso,
     });
   }
+
+  await firestore.collection(collections.tripTracking).doc(fortTripId).set({
+    tripId: fortTripId,
+    vehicleId: "BUS-138",
+    driverId,
+    latitude: 6.9382,
+    longitude: 79.8486,
+    speedKph: 28,
+    heading: 45,
+    nextStopName: "Kadawatha interchange",
+    etaMinutes: 38,
+    seatsAvailable: 26,
+    capturedAt: nowIso,
+    updatedAt: nowIso,
+  });
 }
 
 async function main() {
@@ -576,6 +637,7 @@ async function main() {
   });
 
   const now = new Date().toISOString();
+  await seedPassengerAnnouncements();
   const passengerUids: string[] = [];
 
   for (let i = 0; i < DEMO_PASSENGERS.length; i++) {

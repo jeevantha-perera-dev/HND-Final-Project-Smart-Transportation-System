@@ -1,27 +1,16 @@
 import { Ionicons } from "@expo/vector-icons";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { LinearGradient } from "expo-linear-gradient";
 import { useEffect, useMemo, useState } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { PassengerHomeStackParamList } from "../types";
+import { colors } from "../theme";
 import { searchBusRoutes } from "../../../services/locationService";
 import { enrichBusResultsWithTrips } from "../../../services/tripMatch";
 import { BusResult } from "../../../types/bus";
-import { formatArrivingHeadline, formatJourneyDuration } from "../../../utils/eta";
+import { formatArrivingHeadline } from "../../../utils/eta";
 import { passengerRouteDisplayId } from "../../../utils/busDisplay";
-
-const ACCENT = "#5E5CE6";
-const BG = "#000000";
-/** Dark purple/navy — Live Updates pill (Figma) */
-const LIVE_PILL_BG = "#1A1F36";
-/** Light blue — Live Updates icon + label */
-const LIVE_BLUE = "#6EB4FF";
-const CARD = "#1A1C24";
-const TEXT_MUTED = "#8E8E93";
-const CHIP_UNSELECTED = "#252830";
-const CHIP_BORDER = "#3A3D48";
-const BUS_ID_BLUE = "#6EB4FF";
-const PREDICTION_PURPLE = "#B4A9FF";
 
 const SORT_FILTERS = ["Recommended", "Cheapest", "Earliest", "Express"] as const;
 
@@ -136,15 +125,16 @@ export default function AvailableBusesScreen({ navigation, route }: Props) {
 
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
-      <View style={styles.screen}>
+      <LinearGradient colors={[colors.bgTop, colors.bgBottom]} style={styles.gradient}>
+        <View style={styles.screen}>
         <View style={styles.header}>
           <Pressable onPress={() => navigation.goBack()} hitSlop={12} style={styles.headerIcon}>
-            <Ionicons name="chevron-back" size={22} color="#FFFFFF" />
+            <Ionicons name="chevron-back" size={22} color={colors.textPrimary} />
           </Pressable>
           <Text style={styles.headerTitle}>Available Buses</Text>
           <View style={{ flex: 1 }} />
           <Pressable hitSlop={12} style={styles.headerIcon}>
-            <Ionicons name="options-outline" size={22} color={ACCENT} />
+            <Ionicons name="options-outline" size={22} color={colors.blue} />
           </Pressable>
         </View>
 
@@ -160,7 +150,7 @@ export default function AvailableBusesScreen({ navigation, route }: Props) {
             ) : null}
           </View>
           <Pressable style={styles.livePill}>
-            <Ionicons name="flash" size={13} color={LIVE_BLUE} />
+            <Ionicons name="flash" size={13} color={colors.blueSoft} />
             <Text style={styles.livePillText}>Live Updates</Text>
           </Pressable>
         </View>
@@ -228,14 +218,15 @@ export default function AvailableBusesScreen({ navigation, route }: Props) {
 
           <View style={styles.footerHint}>
             <View style={styles.footerIconWrap}>
-              <Ionicons name="bus-outline" size={18} color={TEXT_MUTED} />
+              <Ionicons name="bus-outline" size={18} color={colors.textMuted} />
             </View>
             <Text style={styles.footerHintText}>
               {`Don't see your route? Try adjusting your search filters for more results.`}
             </Text>
           </View>
         </ScrollView>
-      </View>
+        </View>
+      </LinearGradient>
     </SafeAreaView>
   );
 }
@@ -259,7 +250,7 @@ function BusCard({ bus, onSelect }: { bus: BusResult; onSelect: () => void }) {
         </View>
         <View style={styles.arrivalCol}>
           <View style={styles.arrivalRow}>
-            <Ionicons name="time-outline" size={15} color={BUS_ID_BLUE} />
+            <Ionicons name="time-outline" size={15} color={colors.blueSoft} />
             <Text style={styles.arrivalMins} numberOfLines={1}>
               {formatArrivingHeadline(bus.arrivingInMinutes)}
             </Text>
@@ -276,7 +267,7 @@ function BusCard({ bus, onSelect }: { bus: BusResult; onSelect: () => void }) {
       </Text>
 
       <View style={styles.seatsRow}>
-        <Ionicons name="bus-outline" size={18} color={TEXT_MUTED} />
+        <Ionicons name="bus-outline" size={18} color={colors.textMuted} />
         <View style={styles.seatsLeftCol}>
           <Text style={styles.seatsLabel}>SEATS LEFT</Text>
           <Text style={styles.seatsValue}>{bus.seatsAvailable} Available</Text>
@@ -286,13 +277,15 @@ function BusCard({ bus, onSelect }: { bus: BusResult; onSelect: () => void }) {
 
       <View style={styles.cardDivider} />
 
-      <View style={styles.predictionRow}>
-        <Ionicons name="trending-up-outline" size={16} color={TEXT_MUTED} />
-        <Text style={styles.predictionText}>
-          {`${formatJourneyDuration(bus.durationMinutes)} • ${bus.distanceKm.toFixed(1)} km • `}
-          <Text style={styles.predictionHighlight}>{bus.departureLabel}</Text>
+      <View style={styles.predictedSeatsBox}>
+        <Ionicons name="trending-up-outline" size={18} color={colors.blueSoft} />
+        <Text style={styles.predictedSeatsText} numberOfLines={2}>
+          Predicted Seats When Arrived:{" "}
+          <Text style={styles.predictedSeatsValue}>
+            {bus.predictedSeatsWhenArrived} {bus.predictedSeatsWhenArrived === 1 ? "seat" : "seats"}
+          </Text>
         </Text>
-        <Ionicons name="information-circle-outline" size={16} color={TEXT_MUTED} />
+        <Ionicons name="information-circle-outline" size={18} color={colors.textMuted} />
       </View>
 
       <View style={styles.cardDivider} />
@@ -305,7 +298,7 @@ function BusCard({ bus, onSelect }: { bus: BusResult; onSelect: () => void }) {
         </View>
         <Pressable style={[styles.selectBtn, !bookable && styles.selectBtnDisabled]} onPress={onSelect} disabled={!bookable}>
           <Text style={styles.selectBtnText}>{bookable ? "Select" : "Unavailable"}</Text>
-          {bookable ? <Ionicons name="chevron-forward" size={15} color="#FFFFFF" /> : null}
+          {bookable ? <Ionicons name="chevron-forward" size={15} color={colors.textPrimary} /> : null}
         </Pressable>
       </View>
     </View>
@@ -343,8 +336,9 @@ function SkeletonState({ retrying }: { retrying: boolean }) {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: BG },
-  screen: { flex: 1, backgroundColor: BG },
+  safe: { flex: 1, backgroundColor: colors.bgBottom },
+  gradient: { flex: 1 },
+  screen: { flex: 1 },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -352,10 +346,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 10,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "#2E323D",
+    borderBottomColor: colors.border,
   },
-  headerIcon: {   paddingHorizontal: 4, alignItems: "center", justifyContent: "center" },
-  headerTitle: { color: "#FFFFFF", fontSize: 17, fontWeight: "700", marginLeft: 4 },
+  headerIcon: { paddingHorizontal: 4, alignItems: "center", justifyContent: "center" },
+  headerTitle: { color: colors.textPrimary, fontSize: 17, fontWeight: "700", marginLeft: 4 },
   subHeader: {
     flexDirection: "row",
     alignItems: "center",
@@ -367,7 +361,7 @@ const styles = StyleSheet.create({
   },
   showingLabelWrap: { flex: 1, marginRight: 4, minWidth: 0 },
   showingLabel: {
-    color: "#AEAEB2",
+    color: colors.textSecondary,
     fontSize: 10,
     fontWeight: "600",
     letterSpacing: 2,
@@ -379,7 +373,7 @@ const styles = StyleSheet.create({
     }),
   },
   travelDateHint: {
-    color: "#8E8E93",
+    color: colors.textMuted,
     fontSize: 12,
     fontWeight: "600",
     marginTop: 4,
@@ -388,33 +382,37 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
-    backgroundColor: LIVE_PILL_BG,
+    backgroundColor: colors.cardSecondary,
+    borderWidth: 1,
+    borderColor: colors.border,
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 999,
   },
-  livePillText: { color: LIVE_BLUE, fontSize: 11, fontWeight: "600" },
+  livePillText: { color: colors.blueSoft, fontSize: 11, fontWeight: "600" },
   filterScroll: {flexGrow: 0,flexShrink: 0}, //prevents scroll view from expanding
   filterRow: { gap: 8, paddingHorizontal: 16, paddingBottom: 14, alignItems: "center" , flexDirection: "row"},
   filterChip: {
-    height:36,
-    alignItems:"center",
-    justifyContent:"center",
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: CHIP_UNSELECTED,
+    backgroundColor: colors.cardSecondary,
     borderWidth: 1,
-    borderColor: CHIP_BORDER,
+    borderColor: colors.border,
   },
-  filterChipActive: { backgroundColor: ACCENT, borderColor: ACCENT },
-  filterChipText: { color: "#FFFFFF", fontSize: 14, fontWeight: "600",lineHeight:18 },
-  filterChipTextActive: { color: "#FFFFFF" },
+  filterChipActive: { backgroundColor: colors.blue, borderColor: colors.blue },
+  filterChipText: { color: colors.textPrimary, fontSize: 14, fontWeight: "600", lineHeight: 18 },
+  filterChipTextActive: { color: colors.textPrimary },
   list: { flex: 1 },
   listContent: { paddingHorizontal: 16, paddingBottom: 24, gap: 12 },
   card: {
-    backgroundColor: CARD,
+    backgroundColor: colors.card,
     borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
     padding: 16,
     gap: 10,
   },
@@ -427,17 +425,17 @@ const styles = StyleSheet.create({
   /** Takes remaining width so the arrival pill stays on-card and can shrink the route id. */
   busIdRowWrap: { flex: 1, minWidth: 0, marginRight: 4 },
   busIdRow: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap", minWidth: 0 },
-  busId: { flexGrow: 1, flexShrink: 1, minWidth: 0, color: BUS_ID_BLUE, fontSize: 22, fontWeight: "800" },
+  busId: { flexGrow: 1, flexShrink: 1, minWidth: 0, color: colors.blueSoft, fontSize: 22, fontWeight: "800" },
   expressTag: {
     flexShrink: 0,
-    backgroundColor: "#2E2848",
+    backgroundColor: colors.cardSecondary,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: "#3D3558",
+    borderColor: colors.border,
   },
-  expressTagText: { color: "#A995E8", fontSize: 11, fontWeight: "700" },
+  expressTagText: { color: colors.blueSoft, fontSize: 11, fontWeight: "700" },
   arrivalCol: { flexShrink: 0, alignItems: "flex-end", justifyContent: "center" },
   arrivalRow: {
     flexDirection: "row",
@@ -446,22 +444,22 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
     maxWidth: "100%",
   },
-  arrivalMins: { color: BUS_ID_BLUE, fontSize: 15, fontWeight: "700" },
+  arrivalMins: { color: colors.blueSoft, fontSize: 15, fontWeight: "700" },
   arrivingInline: {
-    color: BUS_ID_BLUE,
+    color: colors.blueSoft,
     fontSize: 11,
     fontWeight: "700",
     letterSpacing: 0.4,
   },
-  routeName: { color: "#FFFFFF", fontSize: 16, fontWeight: "600", flexShrink: 1 },
+  routeName: { color: colors.textPrimary, fontSize: 16, fontWeight: "600", flexShrink: 1 },
   seatsRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
   },
   seatsLeftCol: { flex: 1 },
-  seatsLabel: { color: TEXT_MUTED, fontSize: 10, fontWeight: "700", letterSpacing: 0.4 },
-  seatsValue: { color: "#FFFFFF", fontSize: 15, fontWeight: "700", marginTop: 2 },
+  seatsLabel: { color: colors.textMuted, fontSize: 10, fontWeight: "700", letterSpacing: 0.4 },
+  seatsValue: { color: colors.textPrimary, fontSize: 15, fontWeight: "700", marginTop: 2 },
   crowdPill: {
     flexDirection: "row",
     alignItems: "center",
@@ -474,45 +472,55 @@ const styles = StyleSheet.create({
   crowdText: { fontSize: 10, fontWeight: "700", letterSpacing: 0.2 },
   cardDivider: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: "#2E323D",
+    backgroundColor: colors.border,
     marginVertical: 2,
   },
-  predictionRow: {
+  predictedSeatsBox: {
     flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 8,
-    paddingVertical: 4,
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.cardSecondary,
     minWidth: 0,
   },
-  predictionText: {
+  predictedSeatsText: {
     flex: 1,
     flexShrink: 1,
     minWidth: 0,
-    color: PREDICTION_PURPLE,
-    fontSize: 12,
+    color: colors.textSecondary,
+    fontSize: 13,
     fontWeight: "500",
+    lineHeight: 18,
   },
-  predictionHighlight: { color: PREDICTION_PURPLE, fontWeight: "700" },
+  predictedSeatsValue: {
+    color: colors.blueSoft,
+    fontWeight: "700",
+    fontSize: 13,
+  },
   cardBottom: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingTop: 4,
   },
-  priceLabel: { color: TEXT_MUTED, fontSize: 10, fontWeight: "700", letterSpacing: 0.4 },
-  priceValue: { color: "#FFFFFF", fontSize: 20, fontWeight: "800", marginTop: 2 },
+  priceLabel: { color: colors.textMuted, fontSize: 10, fontWeight: "700", letterSpacing: 0.4 },
+  priceValue: { color: colors.textPrimary, fontSize: 20, fontWeight: "800", marginTop: 2 },
   selectBtn: {
     flexDirection: "row",
     alignItems: "center",
     gap: 2,
-    backgroundColor: ACCENT,
+    backgroundColor: colors.blue,
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 999,
   },
-  selectBtnText: { color: "#FFFFFF", fontSize: 15, fontWeight: "700" },
-  selectBtnDisabled: { opacity: 0.45, backgroundColor: "#3A3D48" },
-  noService: { color: "#FF9F0A", fontSize: 11, fontWeight: "600", marginTop: 6 },
+  selectBtnText: { color: colors.textPrimary, fontSize: 15, fontWeight: "700" },
+  selectBtnDisabled: { opacity: 0.45, backgroundColor: colors.cardSecondary },
+  noService: { color: "#F59E0A", fontSize: 11, fontWeight: "600", marginTop: 6 },
   footerHint: {
     alignItems: "center",
     marginTop: 12,
@@ -524,19 +532,19 @@ const styles = StyleSheet.create({
     height: 36,
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: "#38383A",
+    borderColor: colors.border,
     alignItems: "center",
     justifyContent: "center",
   },
   footerHintText: {
-    color: TEXT_MUTED,
+    color: colors.textMuted,
     fontSize: 13,
     lineHeight: 18,
     textAlign: "center",
     maxWidth: 320,
   },
   errorText: {
-    color: "#FF9F9F",
+    color: "#FCA5A5",
     textAlign: "center",
     marginBottom: 8,
     fontWeight: "600",
@@ -544,32 +552,32 @@ const styles = StyleSheet.create({
   emptyWrap: {
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "#2E323D",
-    backgroundColor: "#171A22",
+    borderColor: colors.border,
+    backgroundColor: colors.card,
     padding: 16,
     marginBottom: 10,
   },
-  emptyTitle: { color: "#E9EEF5", fontSize: 15, fontWeight: "700", marginBottom: 8 },
-  emptySub: { color: "#A2B2C5", fontSize: 12, lineHeight: 18, marginBottom: 12 },
+  emptyTitle: { color: colors.textPrimary, fontSize: 15, fontWeight: "700", marginBottom: 8 },
+  emptySub: { color: colors.textSecondary, fontSize: 12, lineHeight: 18, marginBottom: 12 },
   retryBtn: {
     alignSelf: "flex-start",
     borderRadius: 999,
     paddingHorizontal: 14,
     paddingVertical: 8,
-    backgroundColor: ACCENT,
+    backgroundColor: colors.blue,
   },
-  retryBtnText: { color: "#FFF", fontWeight: "700", fontSize: 12 },
+  retryBtnText: { color: colors.textPrimary, fontWeight: "700", fontSize: 12 },
   skeletonWrap: { gap: 12, marginBottom: 12 },
-  skeletonTitle: { color: "#D7E6F8", fontSize: 14, fontWeight: "700" },
+  skeletonTitle: { color: colors.textSecondary, fontSize: 14, fontWeight: "700" },
   skeletonCard: {
     borderRadius: 14,
-    backgroundColor: "#171A22",
+    backgroundColor: colors.card,
     borderWidth: 1,
-    borderColor: "#2C3340",
+    borderColor: colors.border,
     padding: 14,
     gap: 10,
   },
-  skeletonLineLg: { height: 18, width: "55%", backgroundColor: "#2B3240", borderRadius: 8 },
-  skeletonLineMd: { height: 14, width: "80%", backgroundColor: "#2B3240", borderRadius: 8 },
-  skeletonLineSm: { height: 14, width: "35%", backgroundColor: "#2B3240", borderRadius: 8 },
+  skeletonLineLg: { height: 18, width: "55%", backgroundColor: colors.cardSecondary, borderRadius: 8 },
+  skeletonLineMd: { height: 14, width: "80%", backgroundColor: colors.cardSecondary, borderRadius: 8 },
+  skeletonLineSm: { height: 14, width: "35%", backgroundColor: colors.cardSecondary, borderRadius: 8 },
 });

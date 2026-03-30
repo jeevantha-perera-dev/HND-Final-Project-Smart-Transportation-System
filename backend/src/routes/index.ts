@@ -9,6 +9,7 @@ import { transitRouter } from "./transit";
 import { routesCatalogRouter } from "./routesCatalog";
 import { tripsRouter } from "./trips";
 import { walletRouter } from "./wallet";
+import { notificationsRouter } from "./notifications";
 
 export const apiRouter = Router();
 
@@ -29,3 +30,4 @@ apiRouter.use("/bookings", bookingRouter);
 apiRouter.use("/wallet", walletRouter);
 apiRouter.use("/tracking", trackingRouter);
 apiRouter.use("/sos", sosRouter);
+apiRouter.use("/notifications", notificationsRouter);

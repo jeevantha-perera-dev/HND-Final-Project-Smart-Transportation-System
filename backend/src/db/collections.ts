@@ -13,4 +13,6 @@ export const collections = {
   tripTracking: "tripTracking",
   sosEvents: "sosEvents",
   bookingIndex: "bookingIndex",
+  /** Service / advisory messages for the passenger notifications tab (API reads). */
+  passengerAnnouncements: "passengerAnnouncements",
 } as const;

@@ -180,12 +180,28 @@ type NotificationCardProps = {
   time: string;
   type: "default" | "important";
   icon: keyof typeof Ionicons.glyphMap;
+  /** When true, card is styled as seen. */
+  read?: boolean;
+  /** Tap toggles read / opens item. */
+  onPress?: () => void;
+  optionalActionLabel?: string;
+  onOptionalActionPress?: () => void;
 };
 
-export function NotificationCard({ title, body, time, type, icon }: NotificationCardProps) {
+export function NotificationCard({
+  title,
+  body,
+  time,
+  type,
+  icon,
+  read,
+  onPress,
+  optionalActionLabel,
+  onOptionalActionPress,
+}: NotificationCardProps) {
   const important = type === "important";
-  return (
-    <View style={[styles.notificationCard, important && styles.notificationImportant]}>
+  const inner = (
+    <>
       <View style={styles.notificationHeader}>
         <View style={styles.notificationTimeRow}>
           <View style={[styles.notificationIconWrap, important && styles.notificationIconImportant]}>
@@ -193,10 +209,41 @@ export function NotificationCard({ title, body, time, type, icon }: Notification
           </View>
           <Text style={styles.notificationTime}>{time}</Text>
         </View>
-        {important ? <View style={styles.importantDot} /> : null}
+        {important && !read ? <View style={styles.importantDot} /> : null}
       </View>
       <Text style={styles.notificationTitle}>{title}</Text>
       <Text style={styles.notificationBody}>{body}</Text>
+    </>
+  );
+
+  return (
+    <View
+      style={[
+        styles.notificationCard,
+        important && styles.notificationImportant,
+        read && styles.notificationRead,
+      ]}
+    >
+      {onPress ? (
+        <Pressable
+          onPress={onPress}
+          style={({ pressed }) => [pressed && styles.notificationPressablePressed]}
+          accessibilityRole="button"
+        >
+          {inner}
+        </Pressable>
+      ) : (
+        inner
+      )}
+      {optionalActionLabel && onOptionalActionPress ? (
+        <Pressable
+          onPress={onOptionalActionPress}
+          style={({ pressed }) => [styles.notificationInlineAction, pressed && styles.pressed]}
+        >
+          <Text style={styles.notificationInlineActionText}>{optionalActionLabel}</Text>
+          <Ionicons name="chevron-forward" size={14} color={colors.blueSoft} />
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -300,6 +347,18 @@ const styles = StyleSheet.create({
   importantDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.blueSoft },
   notificationTitle: { color: "#F1F7FF", fontSize: 17, fontWeight: "800", marginTop: 8, marginBottom: 4 },
   notificationBody: { color: "#A8BAD0", fontSize: 13, lineHeight: 18 },
+  notificationRead: { opacity: 0.72 },
+  notificationPressablePressed: { opacity: 0.92 },
+  notificationInlineAction: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "#2A3F55",
+  },
+  notificationInlineActionText: { color: colors.blueSoft, fontSize: 13, fontWeight: "800" },
   screenCard: {
     borderRadius: 16,
     backgroundColor: colors.card,

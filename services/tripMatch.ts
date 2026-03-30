@@ -60,6 +60,10 @@ export async function enrichBusResultsWithTrips(
           tripId: pick.id,
           shortRouteNumber: short || r.shortRouteNumber,
           seatsAvailable: Math.max(0, pick.seatsLeft),
+          predictedSeatsWhenArrived: Math.max(
+            0,
+            Number.isFinite(pick.predictedSeats) ? pick.predictedSeats : Math.max(0, pick.seatsLeft - 2)
+          ),
           price: pick.price,
           fareLKR: pick.price,
           arrivingInMinutes: Math.max(0, pick.arrivalMins),
@@ -67,10 +71,10 @@ export async function enrichBusResultsWithTrips(
           crowdLevel: pick.seatsLeft >= 26 ? "Low" : pick.seatsLeft >= 13 ? "Medium" : "High",
         });
       } else {
-        out.push({ ...r, tripId: null, seatsAvailable: 0 });
+        out.push({ ...r, tripId: null, seatsAvailable: 0, predictedSeatsWhenArrived: 0 });
       }
     } catch {
-      out.push({ ...r, tripId: null, seatsAvailable: 0 });
+      out.push({ ...r, tripId: null, seatsAvailable: 0, predictedSeatsWhenArrived: 0 });
     }
   }
   return out;

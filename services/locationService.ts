@@ -38,6 +38,11 @@ function distanceMeters(aLat: number, aLon: number, bLat: number, bLon: number) 
   return earthRadius * c;
 }
 
+/** Haversine distance between two WGS84 points in metres (for passenger UI labels / sorting). */
+export function distanceBetweenLatLonMeters(aLat: number, aLon: number, bLat: number, bLon: number) {
+  return distanceMeters(aLat, aLon, bLat, bLon);
+}
+
 async function withRetry<T>(label: string, task: () => Promise<T>): Promise<T> {
   try {
     return await task();
@@ -328,6 +333,10 @@ function tripSearchItemToBusResult(
     arrivingInMinutes: arr,
     departureLabel: formatArrivingIn(Math.max(1, arr || 1)),
     seatsAvailable: Math.max(0, trip.seatsLeft),
+    predictedSeatsWhenArrived: Math.max(
+      0,
+      Number.isFinite(trip.predictedSeats) ? trip.predictedSeats : Math.max(0, trip.seatsLeft - 2)
+    ),
     crowdLevel: computeCrowdLevel(Math.max(0, trip.seatsLeft)),
     isExpress: Boolean(trip.express),
     type,

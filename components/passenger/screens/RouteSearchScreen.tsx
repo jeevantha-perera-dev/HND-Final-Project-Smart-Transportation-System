@@ -376,6 +376,23 @@ export default function RouteSearchScreen({ navigation, route }: Props) {
               />
               {locatingOrigin ? <Text style={styles.locationNote}>Detecting your current location...</Text> : null}
               {!locatingOrigin && locationNote ? <Text style={styles.locationNote}>{locationNote}</Text> : null}
+              <View style={styles.swapBetweenRow}>
+                <Pressable
+                  style={styles.swapBtn}
+                  onPress={() => {
+                    const currentFrom = from;
+                    const currentOrigin = fromPlace;
+                    setFrom(to);
+                    setFromPlace(toPlace);
+                    setTo(currentFrom);
+                    setToPlace(currentOrigin);
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Swap from and destination"
+                >
+                  <Ionicons name="swap-vertical-outline" size={14} color="#5EA1E6" />
+                </Pressable>
+              </View>
               <LocationAutocomplete
                 value={to}
                 onChange={(value) => {
@@ -386,19 +403,6 @@ export default function RouteSearchScreen({ navigation, route }: Props) {
                 placeholder="Enter destination"
                 iconType="destination"
               />
-              <Pressable
-                style={styles.swapBtn}
-                onPress={() => {
-                  const currentFrom = from;
-                  const currentOrigin = fromPlace;
-                  setFrom(to);
-                  setFromPlace(toPlace);
-                  setTo(currentFrom);
-                  setToPlace(currentOrigin);
-                }}
-              >
-                <Ionicons name="swap-vertical-outline" size={14} color="#5EA1E6" />
-              </Pressable>
             </View>
 
             <View style={styles.blockHeader}>
@@ -622,10 +626,17 @@ const styles = StyleSheet.create({
     zIndex: 50,
   },
   locationNote: { color: "#9EB4CB", fontSize: 11, marginTop: -4 },
+  /** Sits between From and To, right-aligned like the original floating control. */
+  swapBetweenRow: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    paddingRight: 12,
+    marginTop: -18,
+    marginBottom: -18,
+    zIndex: 60,
+    elevation: 8,
+  },
   swapBtn: {
-    position: "absolute",
-    right: 12,
-    top: 37,
     width: 30,
     height: 30,
     borderRadius: 15,

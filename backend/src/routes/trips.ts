@@ -595,13 +595,9 @@ tripsRouter.get(
     const latestDb = latestSnap.exists ? latestSnap.data() : null;
     const latestInMemory = trackingHub.getLatest(tripId);
 
-    if (!latestDb && !latestInMemory) {
-      throw new HttpError(404, "Tracking data not found");
-    }
-
     res.json({
       tripId,
-      latest: latestInMemory ?? latestDb,
+      latest: latestInMemory ?? latestDb ?? null,
     });
   })
 );
